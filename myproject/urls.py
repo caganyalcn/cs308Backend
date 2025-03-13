@@ -15,10 +15,13 @@ Including another URLconf
     2. Add a URL to urlpatterns:  path('blog/', include('blog.urls'))
 """
 from django.urls import include, path
+def home(request):
+    return JsonResponse({"message": "Welcome to the API!"})
 
 urlpatterns = [
     path('api/accounts/', include('accounts.urls')),
-    path('api/', include('products.urls')),  # Now it will detect the accounts API
+    path('api/', include('products.urls')), 
+    path('', home),  # Now it will detect the accounts API
 ]
 
 from django.urls import get_resolver
