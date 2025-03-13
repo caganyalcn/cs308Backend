@@ -41,6 +41,8 @@ INSTALLED_APPS = [
     
     'rest_framework',  # Django REST framework
     'accounts',  # Your app
+    
+    'products', 
 ]
 
 MIDDLEWARE = [
