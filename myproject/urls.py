@@ -21,3 +21,7 @@ urlpatterns = [
     path('api/', include('products.urls')),  # Now it will detect the accounts API
 ]
 
+from django.urls import get_resolver
+
+for pattern in get_resolver().url_patterns:
+    print(pattern)
