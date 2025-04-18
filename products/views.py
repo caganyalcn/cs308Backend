@@ -1,6 +1,8 @@
 from rest_framework import generics
 from .models import Product
 from .serializers import ProductSerializer
+from django.db import models
+
 
 # List all products (with search & filtering)
 class ProductListView(generics.ListAPIView):
@@ -9,13 +11,30 @@ class ProductListView(generics.ListAPIView):
 
     def get_queryset(self):
         queryset = super().get_queryset()
+    
+        # Filter by category (optional)
         category = self.request.query_params.get('category', None)
-        search = self.request.query_params.get('search', None)
         if category:
             queryset = queryset.filter(category__icontains=category)
+
+        # Filter by search (in name OR description)
+        search = self.request.query_params.get('search', None)
         if search:
-            queryset = queryset.filter(name__icontains=search)
+            queryset = queryset.filter(
+                models.Q(name__icontains=search) | models.Q(description__icontains=search)
+            )
+
+        # Sort handling
+        sort = self.request.query_params.get('sort', None)
+        if sort == 'price_asc':
+            queryset = queryset.order_by('price')
+        elif sort == 'price_desc':
+            queryset = queryset.order_by('-price')
+        elif sort == 'popularity':  # Requires a field like num_orders or rating
+            queryset = queryset.order_by('rating')  # TEMP placeholder
+    
         return queryset
+    
 
 # Get a single product
 class ProductDetailView(generics.RetrieveAPIView):
