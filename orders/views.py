@@ -1,13 +1,14 @@
 from django.shortcuts import render
+from django.contrib.auth.decorators import user_passes_test
 
-# Create your views here.
+
 from django.core.mail import send_mail
 
 from django.http import JsonResponse
 from django.views.decorators.csrf import csrf_exempt
 from .models import Order, OrderItem
 from products.models import Cart, CartItem, Product
-from .utils import generate_invoice_pdf, send_invoice_email
+from .utils import generate_invoice_pdf
 from django.contrib.auth.models import User
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_POST
@@ -28,8 +29,8 @@ def test_mail_view(request):
 from django.core.mail import EmailMessage
 
 def send_invoice_email(user_email, pdf_path):
-    subject = 'Sipariş Faturanız - ÇiftlikBank'
-    body = 'Siparişiniz başarıyla oluşturuldu. Fatura ektedir.'
+    subject = 'Order Invoice - ÇiftlikBank'
+    body = 'Your order has been completed successfully. The invoice is attached.'
 
     email = EmailMessage(subject, body, to=[user_email])
     email.attach_file(pdf_path)
@@ -37,6 +38,7 @@ def send_invoice_email(user_email, pdf_path):
 
 @csrf_exempt
 def place_order(request):
+    
     user_id = request.session.get('user_id')
     if not user_id:
         return JsonResponse({'error': 'Giriş yapmanız gerekiyor'}, status=401)
@@ -56,7 +58,7 @@ def place_order(request):
         total_price += item.product.price * item.quantity
 
     # Kullanıcıdan delivery_address almak istersen request.body'den okuyabilirsin
-    delivery_address = "Varsayılan adres"
+    delivery_address = "Default addres"
 
     # 1. Order kaydı oluştur
     order = Order.objects.create(
@@ -156,3 +158,6 @@ def delivery_list(request):
         })
 
     return JsonResponse({"deliveries": result}, safe=False)
+
+
+

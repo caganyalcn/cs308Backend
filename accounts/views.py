@@ -49,13 +49,17 @@ def login(request):
         password = data.get('password')
 
         user = User.objects.filter(email=email).first()
-
+        
         if user and user.check_password(password):
             request.session['user_id'] = user.id
             request.session.modified = True
 
-            # ✅ Merge cart after login
+            # Merge cart after login
             merge_carts(request, user)
 
             return JsonResponse({'message': 'Login successful'})
         return JsonResponse({'error': 'Invalid credentials'}, status=401)
+
+
+
+

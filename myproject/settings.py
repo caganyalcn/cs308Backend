@@ -86,11 +86,11 @@ DATABASES = {
         'ENGINE': 'django.db.backends.mysql',
         'NAME': 'login_pagedb',
         'USER': 'root',
-<<<<<<< HEAD
+
         'PASSWORD': 'Mina-2004',
-=======
-        'PASSWORD': 'AnaklusmosLandsdown47',
->>>>>>> cagan
+
+        
+
         'HOST': 'localhost',  # or your MySQL server
         'PORT': '3306',
     }
@@ -139,11 +139,11 @@ STATIC_URL = 'static/'
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
 
-# Mailtrap SMTP Settings
+# Mailtrap SMTP 
 EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
 EMAIL_HOST = 'sandbox.smtp.mailtrap.io'
-EMAIL_PORT = 587  # en yaygın ve güvenli olanı seçiyoruz
+EMAIL_PORT = 587  
 EMAIL_HOST_USER = '3fd1a9f5a33c4e'
-EMAIL_HOST_PASSWORD = 'a161b555e45605'  # kendi parolanı tam yaz
+EMAIL_HOST_PASSWORD = 'a161b555e45605'  
 EMAIL_USE_TLS = True
 DEFAULT_FROM_EMAIL = 'noreply@ciftlikbank.com'

@@ -9,16 +9,16 @@ def generate_invoice_pdf(order_id, user_email, items, total_price):
 
     c = canvas.Canvas(filepath)
     c.setFont("Helvetica", 14)
-    c.drawString(100, 800, "ÇiftlikBank Fatura")
-    c.drawString(100, 780, f"Kullanıcı: {user_email}")
-    c.drawString(100, 760, f"Sipariş No: {order_id}")
+    c.drawString(100, 800, "ÇiftlikBank Invoice")
+    c.drawString(100, 780, f"User: {user_email}")
+    c.drawString(100, 760, f"Order number: {order_id}")
 
     y = 720
     for item in items:
         c.drawString(100, y, f"{item['name']} x {item['quantity']} - {item['price']} TL")
         y -= 20
 
-    c.drawString(100, y - 20, f"Toplam: {total_price} TL")
+    c.drawString(100, y - 20, f"Total: {total_price} TL")
     c.showPage()
     c.save()
 
