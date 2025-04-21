@@ -1,0 +1,25 @@
+from reportlab.pdfgen import canvas
+import os
+
+def generate_invoice_pdf(order_id, user_email, items, total_price):
+    filename = f"invoice_{order_id}.pdf"
+    filepath = os.path.join("invoices", filename)
+
+    os.makedirs("invoices", exist_ok=True)
+
+    c = canvas.Canvas(filepath)
+    c.setFont("Helvetica", 14)
+    c.drawString(100, 800, "ÇiftlikBank Fatura")
+    c.drawString(100, 780, f"Kullanıcı: {user_email}")
+    c.drawString(100, 760, f"Sipariş No: {order_id}")
+
+    y = 720
+    for item in items:
+        c.drawString(100, y, f"{item['name']} x {item['quantity']} - {item['price']} TL")
+        y -= 20
+
+    c.drawString(100, y - 20, f"Toplam: {total_price} TL")
+    c.showPage()
+    c.save()
+
+    return filepath
