@@ -86,7 +86,11 @@ DATABASES = {
         'ENGINE': 'django.db.backends.mysql',
         'NAME': 'login_pagedb',
         'USER': 'root',
+<<<<<<< HEAD
         'PASSWORD': 'Mina-2004',
+=======
+        'PASSWORD': 'AnaklusmosLandsdown47',
+>>>>>>> cagan
         'HOST': 'localhost',  # or your MySQL server
         'PORT': '3306',
     }
