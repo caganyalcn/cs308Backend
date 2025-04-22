@@ -8,7 +8,7 @@ from orders.models import OrderItem
 
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])
-def submit_review(request):
+def add_review(request):
     user = request.user
     product_id = request.data.get('product')
     rating = request.data.get('rating')

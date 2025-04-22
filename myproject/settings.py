@@ -38,6 +38,8 @@ INSTALLED_APPS = [
     'django.contrib.messages',
     'django.contrib.staticfiles',
 
+    'corsheaders',
+
     
     'rest_framework',  # Django REST framework
     'accounts',  # Your app
@@ -48,6 +50,7 @@ INSTALLED_APPS = [
 ]
 
 MIDDLEWARE = [
+    'corsheaders.middleware.CorsMiddleware',
     'django.middleware.security.SecurityMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
@@ -147,3 +150,6 @@ EMAIL_HOST_USER = '3fd1a9f5a33c4e'
 EMAIL_HOST_PASSWORD = 'a161b555e45605'  
 EMAIL_USE_TLS = True
 DEFAULT_FROM_EMAIL = 'noreply@ciftlikbank.com'
+
+
+CORS_ALLOW_ALL_ORIGINS = True
