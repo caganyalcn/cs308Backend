@@ -10,6 +10,7 @@ For the full list of settings and their values, see
 https://docs.djangoproject.com/en/5.1/ref/settings/
 """
 
+import os
 from pathlib import Path
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
@@ -20,7 +21,7 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 # See https://docs.djangoproject.com/en/5.1/howto/deployment/checklist/
 
 # SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = 'django-insecure-u3v*les$-+ydr9u*u1gt%scaq(hw!%vy1o)xg2o2s-23da3#+x'
+SECRET_KEY = os.environ.get('DJANGO_SECRET_KEY', 'your-default-insecure-key')
 
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
@@ -43,8 +44,6 @@ INSTALLED_APPS = [
     'accounts',  # Your app
     
     'products', 
-    'orders',
-    'reviews',
 ]
 
 MIDDLEWARE = [
@@ -85,8 +84,8 @@ DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.mysql',
         'NAME': 'login_pagedb',
-        'USER': 'root',
-        'PASSWORD': 'Mina-2004',
+        'USER': os.environ.get('DB_USER', 'root'),
+        'PASSWORD': os.environ.get('DB_PASSWORD', ''),
         'HOST': 'localhost',  # or your MySQL server
         'PORT': '3306',
     }
@@ -134,12 +133,10 @@ STATIC_URL = 'static/'
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
-
-# Mailtrap SMTP Settings
 EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
 EMAIL_HOST = 'sandbox.smtp.mailtrap.io'
-EMAIL_PORT = 587  # en yaygın ve güvenli olanı seçiyoruz
-EMAIL_HOST_USER = '3fd1a9f5a33c4e'
-EMAIL_HOST_PASSWORD = 'a161b555e45605'  # kendi parolanı tam yaz
+EMAIL_PORT = 587  
+EMAIL_HOST_USER = os.environ.get('EMAIL_HOST_USER')
+EMAIL_HOST_PASSWORD = os.environ.get('EMAIL_HOST_PASSWORD')
 EMAIL_USE_TLS = True
 DEFAULT_FROM_EMAIL = 'noreply@ciftlikbank.com'
