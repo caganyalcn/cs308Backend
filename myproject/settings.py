@@ -145,4 +145,6 @@ EMAIL_USE_TLS = True
 DEFAULT_FROM_EMAIL = 'noreply@ciftlikbank.com'
 
 
+
 CORS_ALLOW_ALL_ORIGINS = True
+
