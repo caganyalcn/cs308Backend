@@ -5,12 +5,27 @@ class User(models.Model):
     name = models.CharField(max_length=100)
     surname = models.CharField(max_length=100)
     email = models.EmailField(unique=True)
-    password = models.CharField(max_length=255)  # Store hashed passwords
+    password = models.CharField(max_length=255)
 
     def save(self, *args, **kwargs):
-        # Hash password before saving
-        self.password = make_password(self.password)
-        super(User, self).save(*args, **kwargs)
+        # Always hash the password on first save
+        if self._state.adding:
+            self.password = make_password(self.password)
+        super().save(*args, **kwargs)
+
+    def get_dirty_fields(self):
+        """
+        Returns a dictionary of fields that have been changed but not saved
+        """
+        if not self._state.adding:
+            dirty_fields = {}
+            for field in self._meta.fields:
+                orig = getattr(self, f"_original_{field.name}", None)
+                current = getattr(self, field.name)
+                if orig != current:
+                    dirty_fields[field.name] = current
+            return dirty_fields
+        return {}
 
     def check_password(self, raw_password):
         return check_password(raw_password, self.password)

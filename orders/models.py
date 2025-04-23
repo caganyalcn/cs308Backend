@@ -1,6 +1,5 @@
 from django.db import models
-
-from django.contrib.auth.models import User
+from accounts.models import User
 
 class Order(models.Model):
     user = models.ForeignKey(User, on_delete=models.CASCADE)
@@ -18,7 +17,7 @@ class Order(models.Model):
     )
 
     def __str__(self):
-        return f"Order #{self.id} by {self.user.username}"
+        return f"Order #{self.id} by {self.user.email}"
 
 
 class OrderItem(models.Model):
