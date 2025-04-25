@@ -5,14 +5,11 @@ import json
 from .models import User
 from .serializers import UserSerializer
 
-<<<<<<< HEAD
-=======
 from django.views.decorators.csrf import csrf_exempt
 import json
 from .models import User
 from .serializers import UserSerializer
 
->>>>>>> 4fc05c4 (Remove .pyc and __pycache__ from version control and update .gitignore)
 @csrf_exempt
 def signup(request):
     if request.method == 'POST':
@@ -43,6 +40,8 @@ def signup(request):
                 }, status=400)
             
             user = serializer.save()
+            # Store user ID in session after signup
+            request.session['user_id'] = user.id
             print("User created successfully:", user.email)
             return JsonResponse({
                 "message": "User created successfully",
@@ -82,9 +81,14 @@ def login(request):
             try:
                 user = User.objects.get(email=email)
                 if user.check_password(password):
+                    # Store user ID in session for authentication
+                    request.session['user_id'] = user.id
+                    request.session.save()  # Explicitly save the session
+                    
                     return JsonResponse({
                         "message": "Login successful",
-                        "user": UserSerializer(user).data
+                        "user": UserSerializer(user).data,
+                        "is_admin": user.is_admin
                     })
                 return JsonResponse({"message": "Invalid credentials"}, status=401)
             except User.DoesNotExist:
@@ -105,16 +109,25 @@ def login(request):
 
 @csrf_exempt
 def get_current_user(request):
-    # In a real app, you would get the user from the session or JWT
-    # For now, we'll just return a mock response
-    return JsonResponse({
-        "message": "Current user endpoint works",
-        "user": {
-            "id": 1,
-            "name": "Test User",
-            "surname": "Test Surname",
-            "email": "test@example.com"
-        }
-    })
+    user_id = request.session.get('user_id')
+    if not user_id:
+        return JsonResponse({
+            "message": "Not authenticated",
+            "user": None
+        }, status=401)
+    
+    try:
+        user = User.objects.get(id=user_id)
+        return JsonResponse({
+            "message": "Current user retrieved successfully",
+            "user": UserSerializer(user).data
+        })
+    except User.DoesNotExist:
+        # Clear invalid session
+        request.session.flush()
+        return JsonResponse({
+            "message": "User not found",
+            "user": None
+        }, status=404)
 
 
