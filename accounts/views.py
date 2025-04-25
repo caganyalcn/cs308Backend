@@ -5,6 +5,14 @@ import json
 from .models import User
 from .serializers import UserSerializer
 
+<<<<<<< HEAD
+=======
+from django.views.decorators.csrf import csrf_exempt
+import json
+from .models import User
+from .serializers import UserSerializer
+
+>>>>>>> 4fc05c4 (Remove .pyc and __pycache__ from version control and update .gitignore)
 @csrf_exempt
 def signup(request):
     if request.method == 'POST':
@@ -108,4 +116,5 @@ def get_current_user(request):
             "email": "test@example.com"
         }
     })
+
 
