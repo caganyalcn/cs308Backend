@@ -5,9 +5,16 @@ class UserSerializer(serializers.ModelSerializer):
     class Meta:
         model = User
         fields = ['id', 'name', 'surname', 'email', 'password']
-        extra_kwargs = {'password': {'write_only': True}}  # Hide password from responses
+
+        extra_kwargs = {
+            'password': {'write_only': True},
+            'email': {'required': True}
+        }
+
+    def validate_email(self, value):
+        if User.objects.filter(email=value).exists():
+            raise serializers.ValidationError("A user with this email already exists.")
+        return value
 
     def create(self, validated_data):
-        # Hash password before saving
-        validated_data['password'] = validated_data['password']
         return User.objects.create(**validated_data)

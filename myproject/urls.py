@@ -21,8 +21,12 @@ def home(request):
 
 urlpatterns = [
     path('api/accounts/', include('accounts.urls')),
-    path('api/', include('products.urls')), 
-    path('', home),  # Now it will detect the accounts API
+
+    path('api/products/', include('products.urls')),
+
+    path('api/orders/', include('orders.urls')),  
+    path('api/reviews/', include('reviews.urls')),
+
 ]
 
 from django.urls import get_resolver
