@@ -1,4 +1,3 @@
-
 from rest_framework import generics, status
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import AllowAny
@@ -61,34 +60,49 @@ def add_to_cart(request):
         product_id = data.get("product_id")
         quantity = int(data.get("quantity", 1))
 
-        product = Product.objects.get(id=product_id)
+        if not product_id:
+            return JsonResponse({'error': 'Product ID is required'}, status=400)
+
+        # Get product
+        try:
+            product = Product.objects.get(id=product_id)
+        except Product.DoesNotExist:
+            return JsonResponse({'error': 'Ürün bulunamadı'}, status=404)
+
+        # Check stock
         if product.stock_quantity < quantity:
             return JsonResponse({'error': 'Yetersiz stok'}, status=400)
 
+        # Get or create cart
+        cart = None
         if request.user.is_authenticated:
-            cart, _ = Cart.objects.get_or_create(user=request.user)
+            cart, created = Cart.objects.get_or_create(user=request.user)
         else:
             if not request.session.session_key:
                 request.session.create()
+                request.session.save()
             session_id = request.session.session_key
-            cart = Cart.objects.filter(session_id=session_id).first()
+            cart, created = Cart.objects.get_or_create(session_id=session_id)
 
-
-        cart_item, created = CartItem.objects.get_or_create(cart=cart, product=product)
-        if not created:
+        # Get or create cart item
+        try:
+            cart_item = CartItem.objects.get(cart=cart, product=product)
             cart_item.quantity += quantity
+            cart_item.save()
+        except CartItem.DoesNotExist:
+            cart_item = CartItem.objects.create(
+                cart=cart,
+                product=product,
+                quantity=quantity
+            )
 
-        else:
-            cart_item.quantity = quantity
-        cart_item.save()
-
-        # ❗️Stok güncelle
-        product.stock_quantity -= quantity
-        product.save()
-
-        return JsonResponse({'message': 'Sepete eklendi', 'cart_id': cart.id})
-    except Product.DoesNotExist:
-        return JsonResponse({'error': 'Ürün bulunamadı'}, status=404)
+        return JsonResponse({
+            'message': 'Sepete eklendi',
+            'cart_id': cart.id,
+            'item_id': cart_item.id
+        })
+    except json.JSONDecodeError:
+        return JsonResponse({'error': 'Invalid JSON data'}, status=400)
     except Exception as e:
         return JsonResponse({'error': str(e)}, status=500)
 
