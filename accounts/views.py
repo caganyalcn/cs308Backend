@@ -4,11 +4,7 @@ from django.views.decorators.csrf import csrf_exempt
 import json
 from .models import User
 from .serializers import UserSerializer
-
-from django.views.decorators.csrf import csrf_exempt
-import json
-from .models import User
-from .serializers import UserSerializer
+from products.models import Cart, CartItem
 
 @csrf_exempt
 def signup(request):
@@ -43,6 +39,34 @@ def signup(request):
             # Store user ID in session after signup
             request.session['user_id'] = user.id
             print("User created successfully:", user.email)
+            
+            # Transfer guest cart to user if exists
+            session_id = request.session.session_key
+            if session_id:
+                guest_cart = Cart.objects.filter(session_id=session_id).first()
+                if guest_cart:
+                    # Find or create user cart
+                    user_cart, created = Cart.objects.get_or_create(user=user)
+                    
+                    if not created:
+                        # If user already has a cart, merge the items
+                        for guest_item in guest_cart.items.all():
+                            try:
+                                user_item = user_cart.items.get(product=guest_item.product)
+                                user_item.quantity += guest_item.quantity
+                                user_item.save()
+                            except CartItem.DoesNotExist:
+                                guest_item.cart = user_cart
+                                guest_item.save()
+                        
+                        # Delete the guest cart after transferring items
+                        guest_cart.delete()
+                    else:
+                        # If new user cart was created, just transfer the guest cart
+                        guest_cart.user = user
+                        guest_cart.session_id = None
+                        guest_cart.save()
+            
             return JsonResponse({
                 "message": "User created successfully",
                 "user": UserSerializer(user).data
@@ -84,6 +108,33 @@ def login(request):
                     # Store user ID in session for authentication
                     request.session['user_id'] = user.id
                     request.session.save()  # Explicitly save the session
+                    
+                    # Transfer guest cart to user if exists
+                    session_id = request.session.session_key
+                    if session_id:
+                        guest_cart = Cart.objects.filter(session_id=session_id).first()
+                        if guest_cart:
+                            # Find or create user cart
+                            user_cart, created = Cart.objects.get_or_create(user=user)
+                            
+                            if not created:
+                                # If user already has a cart, merge the items
+                                for guest_item in guest_cart.items.all():
+                                    try:
+                                        user_item = user_cart.items.get(product=guest_item.product)
+                                        user_item.quantity += guest_item.quantity
+                                        user_item.save()
+                                    except CartItem.DoesNotExist:
+                                        guest_item.cart = user_cart
+                                        guest_item.save()
+                                
+                                # Delete the guest cart after transferring items
+                                guest_cart.delete()
+                            else:
+                                # If new user cart was created, just transfer the guest cart
+                                guest_cart.user = user
+                                guest_cart.session_id = None
+                                guest_cart.save()
                     
                     return JsonResponse({
                         "message": "Login successful",
@@ -129,5 +180,40 @@ def get_current_user(request):
             "message": "User not found",
             "user": None
         }, status=404)
+
+@csrf_exempt
+def logout(request):
+    if request.method == 'POST':
+        try:
+            # Get the current user's cart before clearing session
+            user_id = request.session.get('user_id')
+            if user_id:
+                # If user is authenticated, ensure their cart is saved
+                cart = Cart.objects.filter(user_id=user_id).first()
+                if cart:
+                    # Cart is already associated with user, no need to transfer
+                    pass
+            else:
+                # If guest, preserve their cart by clearing the session_id
+                session_id = request.session.session_key
+                if session_id:
+                    guest_cart = Cart.objects.filter(session_id=session_id).first()
+                    if guest_cart:
+                        # Keep the cart but clear the session_id
+                        guest_cart.session_id = None
+                        guest_cart.save()
+
+            # Clear the session
+            request.session.flush()
+            
+            return JsonResponse({
+                "message": "Logged out successfully"
+            })
+        except Exception as e:
+            return JsonResponse({
+                "message": "An error occurred during logout",
+                "error": str(e)
+            }, status=500)
+    return JsonResponse({"message": "Method not allowed"}, status=405)
 
 
