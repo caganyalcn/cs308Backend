@@ -13,6 +13,7 @@ import json
 
 from .models import Product, Cart, CartItem
 from .serializers import ProductSerializer
+from accounts.models import User
 
 # ✅ Ürünleri listeleme (filtreleme, arama, sıralama)
 class ProductListView(generics.ListAPIView):
@@ -74,9 +75,12 @@ def add_to_cart(request):
             return JsonResponse({'error': 'Yetersiz stok'}, status=400)
 
         # Get or create cart
-        cart = None
-        if request.user.is_authenticated:
-            cart, _ = Cart.objects.get_or_create(user=request.user)
+        user_id = request.session.get('user_id')
+        if user_id:
+            user = User.objects.get(id=user_id)
+            cart = Cart.objects.filter(user=user).first()
+            if not cart:
+                cart = Cart.objects.create(user=user)
         else:
             if not request.session.session_key:
                 request.session.create()
@@ -112,8 +116,10 @@ def add_to_cart(request):
 @permission_classes([AllowAny])
 
 def get_cart(request):
-    if request.user.is_authenticated:
-        cart = Cart.objects.filter(user=request.user).first()
+    user_id = request.session.get('user_id')
+    if user_id:
+        user = User.objects.get(id=user_id)
+        cart = Cart.objects.filter(user=user).first()
     else:
         session_id = request.session.session_key
         if not session_id:
@@ -146,8 +152,10 @@ def remove_from_cart(request):
         data = json.loads(request.body)
         product_id = data.get("product_id")
 
-        if request.user.is_authenticated:
-            cart = Cart.objects.filter(user=request.user).first()
+        user_id = request.session.get('user_id')
+        if user_id:
+            user = User.objects.get(id=user_id)
+            cart = Cart.objects.filter(user=user).first()
         else:
             session_id = request.session.session_key
             if not session_id:
@@ -178,8 +186,10 @@ def update_cart_quantity(request):
         if new_quantity < 1:
             return JsonResponse({'error': 'Adet 1\'den küçük olamaz'}, status=400)
 
-        if request.user.is_authenticated:
-            cart = Cart.objects.filter(user=request.user).first()
+        user_id = request.session.get('user_id')
+        if user_id:
+            user = User.objects.get(id=user_id)
+            cart = Cart.objects.filter(user=user).first()
         else:
             session_id = request.session.session_key
             if not session_id:
