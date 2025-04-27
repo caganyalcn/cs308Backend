@@ -96,7 +96,7 @@ DATABASES = {
         'ENGINE': 'django.db.backends.mysql',
         'NAME': 'ciftlikbank_db',
         'USER': 'root',
-        'PASSWORD': 'Mina-2004',  # You'll need to set your MySQL root password
+        'PASSWORD': 'AnaklusmosLandsdown47',  # You'll need to set your MySQL root password
         'HOST': 'localhost',
         'PORT': '3306',
         'OPTIONS': {

@@ -6,6 +6,32 @@ from .models import User
 from .serializers import UserSerializer
 from products.models import Cart, CartItem
 
+# Utility function to merge guest cart into user cart
+def merge_guest_cart_to_user(request, user):
+    session_id = request.session.session_key
+    if not session_id:
+        return
+    guest_cart = Cart.objects.filter(session_id=session_id, user__isnull=True).first()
+    if not guest_cart:
+        return
+    user_cart = Cart.objects.filter(user=user).first()
+    if user_cart:
+        # Merge guest cart items into user cart
+        for guest_item in guest_cart.items.all():
+            try:
+                user_item = user_cart.items.get(product=guest_item.product)
+                user_item.quantity += guest_item.quantity
+                user_item.save()
+            except CartItem.DoesNotExist:
+                guest_item.cart = user_cart
+                guest_item.save()
+        guest_cart.delete()
+    else:
+        # No cart for user, assign guest cart to user
+        guest_cart.user = user
+        guest_cart.session_id = None
+        guest_cart.save()
+
 @csrf_exempt
 def signup(request):
     if request.method == 'POST':
@@ -39,33 +65,8 @@ def signup(request):
             # Store user ID in session after signup
             request.session['user_id'] = user.id
             print("User created successfully:", user.email)
-            
-            # Transfer guest cart to user if exists
-            session_id = request.session.session_key
-            if session_id:
-                guest_cart = Cart.objects.filter(session_id=session_id).first()
-                if guest_cart:
-                    # Find or create user cart
-                    user_cart, created = Cart.objects.get_or_create(user=user)
-                    
-                    if not created:
-                        # If user already has a cart, merge the items
-                        for guest_item in guest_cart.items.all():
-                            try:
-                                user_item = user_cart.items.get(product=guest_item.product)
-                                user_item.quantity += guest_item.quantity
-                                user_item.save()
-                            except CartItem.DoesNotExist:
-                                guest_item.cart = user_cart
-                                guest_item.save()
-                        
-                        # Delete the guest cart after transferring items
-                        guest_cart.delete()
-                    else:
-                        # If new user cart was created, just transfer the guest cart
-                        guest_cart.user = user
-                        guest_cart.session_id = None
-                        guest_cart.save()
+            # Merge guest cart
+            merge_guest_cart_to_user(request, user)
             
             return JsonResponse({
                 "message": "User created successfully",
@@ -109,32 +110,8 @@ def login(request):
                     request.session['user_id'] = user.id
                     request.session.save()  # Explicitly save the session
                     
-                    # Transfer guest cart to user if exists
-                    session_id = request.session.session_key
-                    if session_id:
-                        guest_cart = Cart.objects.filter(session_id=session_id).first()
-                        if guest_cart:
-                            # Find or create user cart
-                            user_cart, created = Cart.objects.get_or_create(user=user)
-                            
-                            if not created:
-                                # If user already has a cart, merge the items
-                                for guest_item in guest_cart.items.all():
-                                    try:
-                                        user_item = user_cart.items.get(product=guest_item.product)
-                                        user_item.quantity += guest_item.quantity
-                                        user_item.save()
-                                    except CartItem.DoesNotExist:
-                                        guest_item.cart = user_cart
-                                        guest_item.save()
-                                
-                                # Delete the guest cart after transferring items
-                                guest_cart.delete()
-                            else:
-                                # If new user cart was created, just transfer the guest cart
-                                guest_cart.user = user
-                                guest_cart.session_id = None
-                                guest_cart.save()
+                    # Merge guest cart
+                    merge_guest_cart_to_user(request, user)
                     
                     return JsonResponse({
                         "message": "Login successful",
