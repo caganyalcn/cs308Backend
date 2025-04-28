@@ -96,7 +96,7 @@ DATABASES = {
         'ENGINE': 'django.db.backends.mysql',
         'NAME': 'ciftlikbank_db',
         'USER': 'root',
-        'PASSWORD': 'AnaklusmosLandsdown47',  # You'll need to set your MySQL root password
+        'PASSWORD': 'Mina-2004',  # You'll need to set your MySQL root password
         'HOST': 'localhost',
         'PORT': '3306',
         'OPTIONS': {
@@ -159,9 +159,9 @@ DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
 EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
 EMAIL_HOST = 'sandbox.smtp.mailtrap.io'
-EMAIL_PORT = 587  
-EMAIL_HOST_USER = os.environ.get('EMAIL_HOST_USER')
-EMAIL_HOST_PASSWORD = os.environ.get('EMAIL_HOST_PASSWORD')
+EMAIL_PORT = 587
+EMAIL_HOST_USER = '6728abc0eb6671'
+EMAIL_HOST_PASSWORD ='0011c36e0afd01'
 EMAIL_USE_TLS = True
 DEFAULT_FROM_EMAIL = 'noreply@ciftlikbank.com'
 

@@ -9,7 +9,7 @@ from django.views.decorators.csrf import csrf_exempt
 from .models import Order, OrderItem
 from products.models import Cart, CartItem, Product
 from .utils import generate_invoice_pdf
-from django.contrib.auth.models import User
+from accounts.models import User
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_POST
 import json
@@ -38,7 +38,7 @@ def send_invoice_email(user_email, pdf_path):
 
 @csrf_exempt
 def place_order(request):
-    
+    print("place_order endpoint called")
     user_id = request.session.get('user_id')
     if not user_id:
         return JsonResponse({'error': 'Giriş yapmanız gerekiyor'}, status=401)
@@ -57,8 +57,8 @@ def place_order(request):
     for item in cart_items:
         total_price += item.product.price * item.quantity
 
-    # Kullanıcıdan delivery_address almak istersen request.body'den okuyabilirsin
-    delivery_address = "Default addres"
+    data = json.loads(request.body or '{}')
+    delivery_address = data.get('address', 'Default address')
 
     # 1. Order kaydı oluştur
     order = Order.objects.create(
@@ -128,7 +128,7 @@ def update_order_status(request, order_id):
 
 from django.views.decorators.http import require_GET
 from .models import Order, OrderItem
-from django.contrib.auth.models import User
+
 
 @csrf_exempt
 @require_GET
@@ -158,6 +158,3 @@ def delivery_list(request):
         })
 
     return JsonResponse({"deliveries": result}, safe=False)
-
-
-
