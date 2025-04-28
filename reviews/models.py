@@ -4,7 +4,7 @@ from accounts.models import User
 class Review(models.Model):
     product = models.ForeignKey('products.Product', on_delete=models.CASCADE)
     user = models.ForeignKey(User, on_delete=models.CASCADE)
-    rating = models.IntegerField()
+    rating = models.IntegerField(blank=True, null=True)
     comment = models.TextField(blank=True, null=True)
     approved = models.BooleanField(default=False)
     created_at = models.DateTimeField(auto_now_add=True)

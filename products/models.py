@@ -12,6 +12,8 @@ class Product(models.Model):
     warranty_status = models.BooleanField(default=False)
     distributor_info = models.TextField()
     image_url = models.URLField()
+    avg_rating = models.FloatField(default=0)
+    rating_count = models.IntegerField(default=0)
 
     def __str__(self):
         return self.name

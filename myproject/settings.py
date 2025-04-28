@@ -96,7 +96,7 @@ DATABASES = {
         'ENGINE': 'django.db.backends.mysql',
         'NAME': 'ciftlikbank_db',
         'USER': 'root',
-        'PASSWORD': 'Mina-2004',  # You'll need to set your MySQL root password
+        'PASSWORD': 'AnaklusmosLandsdown47',  # You'll need to set your MySQL root password
         'HOST': 'localhost',
         'PORT': '3306',
         'OPTIONS': {
@@ -158,7 +158,7 @@ DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
 
 # EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
-EMAIL_BACKEND = 'django.core.mail.backends.console.EmailBackend' # Use console backend for development
+EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend' # Use console backend for development
 EMAIL_HOST = 'sandbox.smtp.mailtrap.io'
 EMAIL_PORT = 587
 EMAIL_HOST_USER = '6728abc0eb6671'
@@ -212,5 +212,5 @@ CSRF_TRUSTED_ORIGINS = [
 
 # Session settings
 SESSION_COOKIE_SAMESITE = 'Lax'
-SESSION_COOKIE_SECURE = False  # Set to True in production with HTTPS
+SESSION_COOKIE_SECURE = False    # True if using HTTPS
 SESSION_COOKIE_HTTPONLY = True
