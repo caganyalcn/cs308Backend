@@ -14,19 +14,8 @@ from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_POST
 import json
 
-
-def test_mail_view(request):
-    send_mail(
-        subject='Test Mail from Çiftlikbank 🐣',
-        message='Bu bir test e-postasıdır.',
-        from_email='noreply@ciftlikbank.com',
-        recipient_list=['test@example.com'],  # önemli değil, Mailtrap'e gider
-        fail_silently=False,
-    )
-    return JsonResponse({'message': 'Mail gönderildi!'})
-
-
 from django.core.mail import EmailMessage
+from .serializers import OrderSerializer
 
 def send_invoice_email(user_email, pdf_path):
     subject = 'Order Invoice - ÇiftlikBank'
@@ -38,7 +27,6 @@ def send_invoice_email(user_email, pdf_path):
 
 @csrf_exempt
 def place_order(request):
-    print("place_order endpoint called")
     user_id = request.session.get('user_id')
     if not user_id:
         return JsonResponse({'error': 'Giriş yapmanız gerekiyor'}, status=401)
@@ -158,3 +146,42 @@ def delivery_list(request):
         })
 
     return JsonResponse({"deliveries": result}, safe=False)
+
+@csrf_exempt
+def get_latest_order(request):
+    """
+    Retrieves the latest order for the currently authenticated user.
+    """
+    user_id = request.session.get('user_id')
+    if not user_id:
+        return JsonResponse({'error': 'User not authenticated'}, status=401)
+    user = User.objects.get(id=user_id)
+    
+    try:
+        latest_order = Order.objects.filter(user=user).latest('created_at')
+        # fetch related order items
+        order_items = OrderItem.objects.filter(order=latest_order)
+        items_data = [
+            {
+                'product_id': item.product.id,
+                'product_name': item.product.name,
+                'image_url': item.product.image_url,
+                'quantity': item.quantity,
+                'price_each': float(item.price_at_purchase)
+            }
+            for item in order_items
+        ]
+        response_data = {
+            'order_id': latest_order.id,
+            'created_at': latest_order.created_at,
+            'total_price': float(latest_order.total_price),
+            'delivery_address': latest_order.delivery_address,
+            'status': latest_order.status,
+            'items': items_data
+        }
+        return JsonResponse(response_data)
+    except Order.DoesNotExist:
+        return JsonResponse({'message': 'No orders found for this user.'}, status=404)
+
+
+
