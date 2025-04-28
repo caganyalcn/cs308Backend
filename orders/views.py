@@ -1,17 +1,12 @@
 from django.shortcuts import render
-from django.contrib.auth.decorators import user_passes_test
-
-
 from django.core.mail import send_mail
-
 from django.http import JsonResponse
 from django.views.decorators.csrf import csrf_exempt
 from .models import Order, OrderItem
 from products.models import Cart, CartItem, Product
 from .utils import generate_invoice_pdf
 from accounts.models import User
-from django.views.decorators.csrf import csrf_exempt
-from django.views.decorators.http import require_POST
+from django.views.decorators.http import require_POST, require_GET
 import json
 
 from django.core.mail import EmailMessage
@@ -86,17 +81,16 @@ def place_order(request):
 
     return JsonResponse({'message': 'Sipariş alındı, fatura gönderildi'})
 
-
-
-
-# Simple role check (replace with your actual user roles later)
-def is_product_manager(user):
-    return user.is_authenticated and user.groups.filter(name='product_manager').exists()
-
 @csrf_exempt
 @require_POST
-@user_passes_test(is_product_manager)
 def update_order_status(request, order_id):
+    # session-based authentication
+    user_id = request.session.get('user_id')
+    if not user_id:
+        return JsonResponse({'error': 'User not authenticated'}, status=401)
+    user = User.objects.get(id=user_id)
+    if not user.is_admin:
+        return JsonResponse({'error': 'Permission denied'}, status=403)
     try:
         data = json.loads(request.body)
         new_status = data.get('status')
@@ -114,14 +108,16 @@ def update_order_status(request, order_id):
     except Exception as e:
         return JsonResponse({'error': str(e)}, status=500)
 
-from django.views.decorators.http import require_GET
-from .models import Order, OrderItem
-
-
 @csrf_exempt
 @require_GET
-@user_passes_test(is_product_manager)
 def delivery_list(request):
+    # session-based authentication
+    user_id = request.session.get('user_id')
+    if not user_id:
+        return JsonResponse({'error': 'User not authenticated'}, status=401)
+    user = User.objects.get(id=user_id)
+    if not user.is_admin:
+        return JsonResponse({'error': 'Permission denied'}, status=403)
     orders = Order.objects.all().select_related('user').prefetch_related('items__product')
 
     result = []
@@ -148,6 +144,7 @@ def delivery_list(request):
     return JsonResponse({"deliveries": result}, safe=False)
 
 @csrf_exempt
+@require_GET
 def get_latest_order(request):
     """
     Retrieves the latest order for the currently authenticated user.
@@ -182,6 +179,50 @@ def get_latest_order(request):
         return JsonResponse(response_data)
     except Order.DoesNotExist:
         return JsonResponse({'message': 'No orders found for this user.'}, status=404)
+
+@csrf_exempt
+@require_GET
+def get_all_orders_for_user(request):
+    """
+    Retrieves all orders for the currently authenticated user, including their order items.
+    """
+    # Debug logs for session-based auth
+    print('get_all_orders_for_user invoked')
+    print('Session key:', request.session.session_key)
+    user_id = request.session.get('user_id')
+    print('Retrieved user_id from session:', user_id)
+    if not user_id:
+        print('Authentication failed: no user_id in session, returning 401')
+        return JsonResponse({'error': 'User not authenticated'}, status=401)
+    user = User.objects.get(id=user_id)
+    
+    orders = Order.objects.filter(user=user).order_by('-created_at')
+    if not orders.exists():
+        return JsonResponse({'message': 'No orders found for this user.'}, status=404)
+    
+    orders_data = []
+    for order in orders:
+        order_items = OrderItem.objects.filter(order=order)
+        items_data = [
+            {
+                'product_id': item.product.id,
+                'product_name': item.product.name,
+                'image_url': item.product.image_url,
+                'quantity': item.quantity,
+                'price_each': float(item.price_at_purchase)
+            }
+            for item in order_items
+        ]
+        orders_data.append({
+            'order_id': order.id,
+            'created_at': order.created_at,
+            'total_price': float(order.total_price),
+            'delivery_address': order.delivery_address,
+            'status': order.status,
+            'items': items_data
+        })
+    return JsonResponse({'orders': orders_data})
+
 
 
 

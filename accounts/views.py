@@ -137,11 +137,19 @@ def login(request):
 
 @csrf_exempt
 def get_current_user(request):
+   
+    if not request.session.session_key:
+        request.session.save()
+        print("Session initialized with key:", request.session.session_key)
+    
     user_id = request.session.get('user_id')
+   
+    
     if not user_id:
         return JsonResponse({
             "message": "Not authenticated",
-            "user": None
+            "user": None,
+            "session_exists": bool(request.session.session_key)
         }, status=401)
     
     try:
