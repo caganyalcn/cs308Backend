@@ -8,4 +8,6 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 COPY . .
 
-CMD ["python", "manage.py", "runserver", "0.0.0.0:8000"] 
+COPY wait-for-it.sh /wait-for-it.sh
+RUN chmod +x /wait-for-it.sh
+CMD ["/wait-for-it.sh", "db:3306", "-t", "60", "--", "python", "manage.py", "runserver", "0.0.0.0:8000"]
