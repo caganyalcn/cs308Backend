@@ -3,3 +3,5 @@ djangorestframework
 django-cors-headers
 PyMySQL
 reportlab
+mysqlclient>=2.0
+cryptography
