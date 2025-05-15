@@ -94,10 +94,10 @@ WSGI_APPLICATION = 'myproject.wsgi.application'
 DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.mysql',
-        'NAME': 'ciftlikbank_db',
-        'USER': 'root',
-        'PASSWORD': 'AnaklusmosLandsdown47',  # You'll need to set your MySQL root password
-        'HOST': 'localhost',
+        'NAME': 'cs308db',
+        'USER': 'cs308user',
+        'PASSWORD': 'cs308pass',
+        'HOST': 'db',  # Docker service name
         'PORT': '3306',
         'OPTIONS': {
             'init_command': "SET sql_mode='STRICT_TRANS_TABLES'"
