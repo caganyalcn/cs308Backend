@@ -209,6 +209,8 @@ CSRF_TRUSTED_ORIGINS = [
     "http://localhost:3000",
     "http://127.0.0.1:3000",
 ]
+SALES_MANAGER_EMAIL    = "sales@shop"
+SALES_MANAGER_PASSWORD = "sales123"
 
 # Session settings
 SESSION_COOKIE_SAMESITE = 'Lax'

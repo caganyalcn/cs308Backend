@@ -5,6 +5,8 @@ import json
 from .models import User
 from .serializers import UserSerializer
 from products.models import Cart, CartItem
+from django.contrib.auth.hashers import make_password
+from django.conf import settings
 
 # Utility function to merge guest cart into user cart
 def merge_guest_cart_to_user(request, user):
@@ -33,107 +35,65 @@ def merge_guest_cart_to_user(request, user):
         guest_cart.save()
 
 @csrf_exempt
-def signup(request):
-    if request.method == 'POST':
-        try:
-            # Print raw request body
-            print("Raw request body:", request.body.decode('utf-8'))
-            
-            data = json.loads(request.body)
-            print("Parsed JSON data:", data)
-            
-            # Validate required fields
-            required_fields = ['name', 'surname', 'email', 'password']
-            missing_fields = [field for field in required_fields if field not in data]
-            if missing_fields:
-                return JsonResponse({
-                    "message": "Missing required fields",
-                    "missing_fields": missing_fields
-                }, status=400)
-            
-            serializer = UserSerializer(data=data)
-            print("Serializer is valid:", serializer.is_valid())
-            if not serializer.is_valid():
-                print("Validation errors:", serializer.errors)
-                return JsonResponse({
-                    "message": "Validation failed",
-                    "errors": serializer.errors,
-                    "received_data": data
-                }, status=400)
-            
-            user = serializer.save()
-            # Store user ID in session after signup
-            request.session['user_id'] = user.id
-            print("User created successfully:", user.email)
-            # Merge guest cart
-            merge_guest_cart_to_user(request, user)
-            
-            return JsonResponse({
-                "message": "User created successfully",
-                "user": UserSerializer(user).data
-            })
-            
-        except json.JSONDecodeError as e:
-            print("JSON decode error:", str(e))
-            return JsonResponse({
-                "message": "Invalid JSON data",
-                "error": str(e)
-            }, status=400)
-        except Exception as e:
-            print("Unexpected error:", str(e))
-            return JsonResponse({
-                "message": "An unexpected error occurred",
-                "error": str(e)
-            }, status=400)
-    return JsonResponse({"message": "Signup endpoint works"})
-
-@csrf_exempt
 def login(request):
-    if request.method == 'POST':
+    if request.method != "POST":
+        return JsonResponse({"message": "Login endpoint works"})
+
+    try:
+        data = json.loads(request.body)
+        email = data.get("email")
+        raw_password = data.get("password")
+
+        if not email or not raw_password:
+            return JsonResponse({"message": "Email and password are required"}, status=400)
+
+        # 1️⃣ Satış yöneticisi
+        if email == settings.SALES_MANAGER_EMAIL and raw_password == settings.SALES_MANAGER_PASSWORD:
+            user, _ = User.objects.get_or_create(
+                email=email,
+                defaults={
+                    "name": "Sales",
+                    "surname": "Manager",
+                    "password": make_password(raw_password),
+                    "role": "sales_manager",
+                },
+            )
+            if user.role != "sales_manager":
+                user.role = "sales_manager"
+                user.save(update_fields=["role"])
+
+            # ⬇ Session oluştur
+            request.session["user_id"] = user.id
+            request.session.save()
+
+            return JsonResponse({"message": "Login successful", "role": user.role})
+
+        # 2️⃣ Normal kullanıcılar
         try:
-            print("Raw login request body:", request.body.decode('utf-8'))
-            data = json.loads(request.body)
-            print("Login attempt with data:", data)
-            
-            email = data.get('email')
-            password = data.get('password')
-            
-            if not email or not password:
-                return JsonResponse({
-                    "message": "Email and password are required"
-                }, status=400)
-            
-            try:
-                user = User.objects.get(email=email)
-                if user.check_password(password):
-                    # Store user ID in session for authentication
-                    request.session['user_id'] = user.id
-                    request.session.save()  # Explicitly save the session
-                    
-                    # Merge guest cart
-                    merge_guest_cart_to_user(request, user)
-                    
-                    return JsonResponse({
-                        "message": "Login successful",
-                        "user": UserSerializer(user).data,
-                        "is_admin": user.is_admin
-                    })
-                return JsonResponse({"message": "Invalid credentials"}, status=401)
-            except User.DoesNotExist:
-                return JsonResponse({"message": "User not found"}, status=404)
-        except json.JSONDecodeError as e:
-            print("Login JSON decode error:", str(e))
-            return JsonResponse({
-                "message": "Invalid JSON data",
-                "error": str(e)
-            }, status=400)
-        except Exception as e:
-            print("Login unexpected error:", str(e))
-            return JsonResponse({
-                "message": "An unexpected error occurred",
-                "error": str(e)
-            }, status=400)
-    return JsonResponse({"message": "Login endpoint works"})
+            user = User.objects.get(email=email)
+        except User.DoesNotExist:
+            return JsonResponse({"message": "User not found"}, status=404)
+
+        if not user.check_password(raw_password):
+            return JsonResponse({"message": "Invalid credentials"}, status=401)
+
+        request.session["user_id"] = user.id
+        request.session.save()
+        merge_guest_cart_to_user(request, user)
+
+        return JsonResponse({
+            "message": "Login successful",
+            "user": UserSerializer(user).data,
+            "role": user.role,
+        })
+
+    except json.JSONDecodeError as e:
+        return JsonResponse({"message": "Invalid JSON data", "error": str(e)}, status=400)
+    except Exception as e:
+        print("Login unexpected error:", e)
+        return JsonResponse({"message": "An unexpected error occurred", "error": str(e)}, status=400)
+
+
 
 @csrf_exempt
 def get_current_user(request):
