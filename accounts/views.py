@@ -7,6 +7,7 @@ from .serializers import UserSerializer
 from products.models import Cart, CartItem
 from django.contrib.auth.hashers import make_password
 from django.conf import settings
+from django.contrib.auth import login as auth_login
 
 # Utility function to merge guest cart into user cart
 def merge_guest_cart_to_user(request, user):
@@ -64,6 +65,7 @@ def login(request):
 
             # ⬇ Session oluştur
             request.session["user_id"] = user.id
+            request.session.modified = True 
             request.session.save()
 
             return JsonResponse({"message": "Login successful", "role": user.role})
@@ -78,6 +80,7 @@ def login(request):
             return JsonResponse({"message": "Invalid credentials"}, status=401)
 
         request.session["user_id"] = user.id
+        request.session.modified = True 
         request.session.save()
         merge_guest_cart_to_user(request, user)
 

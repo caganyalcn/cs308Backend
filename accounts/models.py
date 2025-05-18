@@ -19,6 +19,9 @@ class User(models.Model):
     role = models.CharField( 
         max_length=20, choices=role_choices, default=role_customer
     )
+    def is_authenticated(self):
+       
+        return True
 
     def save(self, *args, **kwargs):
         # Always hash the password on first save
