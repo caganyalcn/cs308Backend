@@ -18,8 +18,8 @@ def admin_dashboard(request):
                 return JsonResponse({"message": "Authentication required"}, status=401)
             
             user = User.objects.get(id=user_id)
-            if not user.is_admin:
-                return JsonResponse({"message": "Admin access required"}, status=403)
+            if user.role != User.role_product_manager:
+                return JsonResponse({"message": "Product-manager access required"}, status=403)
             
             # Get filter parameters from query string
             search_query = request.GET.get('search', '')
@@ -130,8 +130,8 @@ def approve_review(request, review_id):
                 return JsonResponse({"message": "Authentication required"}, status=401)
             
             user = User.objects.get(id=user_id)
-            if not user.is_admin:
-                return JsonResponse({"message": "Admin access required"}, status=403)
+            if user.role != User.role_product_manager:
+                return JsonResponse({"message": "Product-manager access required"}, status=403)
             
             review = Review.objects.get(id=review_id)
             review.approved = True

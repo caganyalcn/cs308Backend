@@ -14,6 +14,9 @@ class Product(models.Model):
     image_url = models.URLField()
     avg_rating = models.FloatField(default=0)
     rating_count = models.IntegerField(default=0)
+    is_priced = models.BooleanField(default=False)
+    discount_percent = models.PositiveIntegerField(default=0)  # 0–90 kontrolü API’de
+    cost_price = models.DecimalField(max_digits=10, decimal_places=2, default=0)
 
     def __str__(self):
         return self.name
@@ -31,3 +34,11 @@ class CartItem(models.Model):
 
     def total_price(self):
         return self.product.price * self.quantity
+
+class Wishlist(models.Model):
+    user = models.ForeignKey(User, on_delete=models.CASCADE)
+    product = models.ForeignKey(Product, on_delete=models.CASCADE)
+    added_at = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return f"{self.user.email} - {self.product.name}"
