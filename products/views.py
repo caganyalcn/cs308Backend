@@ -8,6 +8,7 @@ from django.core.exceptions import ValidationError
 from django.views.decorators.csrf import csrf_exempt
 from django.http import JsonResponse
 from django.contrib.auth.decorators import login_required
+from accounts.authentication import CustomSessionAuthentication
 
 import json
 
@@ -15,34 +16,41 @@ from .models import Product, Cart, CartItem
 from .serializers import ProductSerializer
 from accounts.models import User
 
-# ✅ Ürünleri listeleme (filtreleme, arama, sıralama)
 class ProductListView(generics.ListAPIView):
     serializer_class = ProductSerializer
+    authentication_classes = [CustomSessionAuthentication]  # Eğer default auth değilse
 
     def get_queryset(self):
-        queryset = Product.objects.all()
+        qs = Product.objects.all()
+        user = getattr(self.request, "user", None)
+        role = getattr(user, "role", None)
 
-        category = self.request.query_params.get('category')
+        # Müşteri/anon → sadece fiyatlı
+        if role not in ("product_manager", "sales_manager"):
+            qs = qs.filter(is_priced=True)
+
+        # Filtreler / arama / sıralama
+        category = self.request.query_params.get("category")
         if category:
-            queryset = queryset.filter(category__icontains=category)
+            qs = qs.filter(category__icontains=category)
 
-        search = self.request.query_params.get('search')
+        search = self.request.query_params.get("search")
         if search:
-            queryset = queryset.filter(
-                Q(name__icontains=search) | Q(description__icontains=search)
+            qs = qs.filter(
+                Q(name__icontains=search) |
+                Q(description__icontains=search)
             )
 
-        sort = self.request.query_params.get('sort')
+        sort = self.request.query_params.get("sort")
+        if sort == "price_asc":
+            qs = qs.order_by("price")
+        elif sort == "price_desc":
+            qs = qs.order_by("-price")
+        elif sort == "popularity":
+            # rating_count modelde varsa, rating yerine onu kullanın
+            qs = qs.order_by("-rating_count")
 
-        if sort == 'price_asc':
-            queryset = queryset.order_by('price')
-        elif sort == 'price_desc':
-            queryset = queryset.order_by('-price')
-
-        elif sort == 'popularity':
-            queryset = queryset.order_by('-rating')
-
-        return queryset
+        return qs
 
 # ✅ Tek ürün detay görüntüleme
 

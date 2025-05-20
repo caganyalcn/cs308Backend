@@ -54,6 +54,7 @@ INSTALLED_APPS = [
     'orders',
     'reviews',
     'address',
+    'sales',
 ]
 
 MIDDLEWARE = [
@@ -209,6 +210,16 @@ CSRF_TRUSTED_ORIGINS = [
     "http://localhost:3000",
     "http://127.0.0.1:3000",
 ]
+
+REST_FRAMEWORK = {
+    "DEFAULT_AUTHENTICATION_CLASSES": [
+        "accounts.authentication.CustomSessionAuthentication",
+        
+    ],
+}
+
+SALES_MANAGER_EMAIL    = "sales@shop"
+SALES_MANAGER_PASSWORD = "sales123"
 
 # Session settings
 SESSION_COOKIE_SAMESITE = 'Lax'

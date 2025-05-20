@@ -6,7 +6,22 @@ class User(models.Model):
     surname = models.CharField(max_length=100)
     email = models.EmailField(unique=True)
     password = models.CharField(max_length=255)
-    is_admin = models.BooleanField(default=False)
+    
+    role_customer = "customer"
+    role_sales_manager = "sales_manager"
+    role_product_manager = "product_manager"
+
+    role_choices = [
+        (role_customer, "Customer"),
+        (role_sales_manager, "Sales Manager"),
+        (role_product_manager, "Product Manager")
+    ]
+    role = models.CharField( 
+        max_length=20, choices=role_choices, default=role_customer
+    )
+    def is_authenticated(self):
+       
+        return True
 
     def save(self, *args, **kwargs):
         # Always hash the password on first save

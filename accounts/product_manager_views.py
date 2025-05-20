@@ -7,8 +7,17 @@ from reviews.models import Review
 from django.db.models import Q
 from datetime import datetime, timedelta
 import json
+from accounts.authentication import CustomSessionAuthentication
+from rest_framework.decorators import api_view, authentication_classes, permission_classes
+from rest_framework.response import Response
+from rest_framework import status
+from rest_framework.permissions import IsAuthenticated
+from products.serializers import ProductSerializer
 
-@csrf_exempt
+
+@api_view(['GET'])
+@authentication_classes([CustomSessionAuthentication])
+@permission_classes([IsAuthenticated])
 def admin_dashboard(request):
     if request.method == 'GET':
         try:
@@ -18,8 +27,8 @@ def admin_dashboard(request):
                 return JsonResponse({"message": "Authentication required"}, status=401)
             
             user = User.objects.get(id=user_id)
-            if not user.is_admin:
-                return JsonResponse({"message": "Admin access required"}, status=403)
+            if user.role != User.role_product_manager:
+                return JsonResponse({"message": "Product-manager access required"}, status=403)
             
             # Get filter parameters from query string
             search_query = request.GET.get('search', '')
@@ -121,7 +130,9 @@ def admin_dashboard(request):
             }, status=400)
     return JsonResponse({"message": "Method not allowed"}, status=405)
 
-@csrf_exempt
+@api_view(['POST'])
+@authentication_classes([CustomSessionAuthentication])
+@permission_classes([IsAuthenticated])
 def approve_review(request, review_id):
     if request.method == 'POST':
         try:
@@ -130,8 +141,8 @@ def approve_review(request, review_id):
                 return JsonResponse({"message": "Authentication required"}, status=401)
             
             user = User.objects.get(id=user_id)
-            if not user.is_admin:
-                return JsonResponse({"message": "Admin access required"}, status=403)
+            if user.role != User.role_product_manager:
+                return JsonResponse({"message": "Product-manager access required"}, status=403)
             
             review = Review.objects.get(id=review_id)
             review.approved = True
@@ -150,3 +161,119 @@ def approve_review(request, review_id):
                 "error": str(e)
             }, status=400)
     return JsonResponse({"message": "Method not allowed"}, status=405) 
+
+@api_view(['POST'])
+@authentication_classes([CustomSessionAuthentication])
+@permission_classes([IsAuthenticated])
+def add_product(request):
+    if request.user.role != User.role_product_manager:
+        return Response({"error": "Forbidden"}, status=403)
+    serializer = ProductSerializer(data=request.data)
+    serializer.is_valid(raise_exception=True)
+    product = serializer.save(is_priced=False)
+    return Response({"id": product.id, "message": "Product added, waiting for pricing."}, status=201)
+
+
+@api_view(["PUT"])
+@authentication_classes([CustomSessionAuthentication])
+@permission_classes([IsAuthenticated])
+def update_product(request, pk):
+    """
+    Ürün güncellemeyi sağlar. Product Manager yetkisi gerektirir.
+    """
+    try:
+        user = request.user
+        if user.role != User.role_product_manager:
+            return Response({"error": "Unauthorized"}, status=403)
+        
+        product = Product.objects.get(pk=pk)
+        serializer = ProductSerializer(product, data=request.data, partial=True)
+        
+        if serializer.is_valid():
+            serializer.save()
+            return Response({"message": "Product updated successfully", "product": serializer.data})
+        else:
+            return Response(serializer.errors, status=400)
+    
+    except Product.DoesNotExist:
+        return Response({"error": "Product not found"}, status=404)
+    except Exception as e:
+        return Response({"error": str(e)}, status=500)
+
+@api_view(["DELETE"])
+@authentication_classes([CustomSessionAuthentication])
+@permission_classes([IsAuthenticated])
+def remove_product(request, pk):
+    """
+    Ürünü siler. Eğer daha önce sipariş edilmişse silinemez.
+    """
+    try:
+        user = request.user
+        if user.role != User.role_product_manager:
+            return Response({"error": "Unauthorized"}, status=403)
+
+        product = Product.objects.get(pk=pk)
+        
+        if Order.objects.filter(items__product=product).exists():
+            return Response({"error": "This product has existing orders and cannot be deleted."}, status=400)
+        
+        product.delete()
+        return Response({"message": "Product deleted successfully."})
+    
+    except Product.DoesNotExist:
+        return Response({"error": "Product not found"}, status=404)
+    except Exception as e:
+        return Response({"error": str(e)}, status=500)
+
+@api_view(["PUT"])
+@authentication_classes([CustomSessionAuthentication])
+@permission_classes([IsAuthenticated])
+def update_stock(request, pk):
+    """
+    Stok adedini günceller.
+    """
+    try:
+        user = request.user
+        if user.role != User.role_product_manager:
+            return Response({"error": "Unauthorized"}, status=403)
+
+        product = Product.objects.get(pk=pk)
+        stock_quantity = request.data.get("stock_quantity")
+
+        if stock_quantity is not None and int(stock_quantity) >= 0:
+            product.stock_quantity = int(stock_quantity)
+            product.save(update_fields=["stock_quantity"])
+            return Response({"message": "Stock updated successfully", "quantity": product.stock_quantity})
+        else:
+            return Response({"error": "Invalid stock quantity."}, status=400)
+    
+    except Product.DoesNotExist:
+        return Response({"error": "Product not found"}, status=404)
+    except Exception as e:
+        return Response({"error": str(e)}, status=500)
+
+@api_view(["POST"])
+@authentication_classes([CustomSessionAuthentication])
+@permission_classes([IsAuthenticated])
+def disapprove_review(request, review_id):
+    """
+    Yorum reddetme işlemi.
+    """
+    try:
+        user = request.user
+        if user.role != User.role_product_manager:
+            return Response({"error": "Unauthorized"}, status=403)
+
+        review = Review.objects.get(pk=review_id)
+        review.approved = False
+        review.save()
+        
+        return Response({
+            "message": "Review disapproved successfully",
+            "review_id": review_id
+        })
+    
+    except Review.DoesNotExist:
+        return Response({"error": "Review not found"}, status=404)
+    except Exception as e:
+        return Response({"error": str(e)}, status=500)

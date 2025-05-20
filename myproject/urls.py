@@ -20,11 +20,22 @@ def home(request):
     return JsonResponse({"message": "Welcome to the API!"})
 
 urlpatterns = [
+    
+    
+    # Accounts: login/logout, PM/SM API’leri
     path('api/accounts/', include('accounts.urls')),
+
+    # Ürün katalog & sepet
     path('api/products/', include('products.urls')),
 
-    path('api/orders/', include('orders.urls')),  
+    # Siparişler (checkout, delivery status, vb.)
+    path('api/orders/', include('orders.urls')),
+
+    # İncelemeler (yorum & rating)
     path('api/reviews/', include('reviews.urls')),
+
+    # Sales Manager işleri
+    path('api/sales/', include('sales.urls')),
 ]
 
 from django.urls import get_resolver
