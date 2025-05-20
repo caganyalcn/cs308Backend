@@ -121,7 +121,7 @@ from django.db.models import Sum
 from django.http import FileResponse
 from decimal import Decimal
 from accounts.authentication import CustomSessionAuthentication
-from accounts.permissions import IsSalesManager
+from accounts.permission import IsSalesManager
 from products.models import Product, Wishlist
 from orders.models import Order, OrderItem
 from .serializers import PriceSerializer, DiscountSerializer

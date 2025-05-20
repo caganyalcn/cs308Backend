@@ -233,7 +233,7 @@ from rest_framework.decorators import api_view, authentication_classes, permissi
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from accounts.authentication import CustomSessionAuthentication
-from accounts.permissions import IsProductManager
+from accounts.permission import IsProductManager
 from .models import Order, OrderItem
 from products.models import Cart, CartItem
 from accounts.models import User

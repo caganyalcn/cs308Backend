@@ -243,10 +243,12 @@ from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import AllowAny
 from rest_framework.response import Response
 from accounts.authentication import CustomSessionAuthentication
-from accounts.permissions import IsProductManager
+from accounts.permission import IsProductManager
 from .models import Product, Cart, CartItem
 from .serializers import ProductSerializer
 from django.db import models
+from rest_framework import generics
+
 
 @api_view(['POST'])
 @permission_classes([AllowAny])
@@ -306,3 +308,11 @@ def update_cart_quantity(request):
     item.quantity = quantity
     item.save()
     return Response({'message': 'Quantity updated'})
+
+class ProductListView(generics.ListAPIView):
+    queryset = Product.objects.all()
+    serializer_class = ProductSerializer
+
+class ProductDetailView(generics.RetrieveAPIView):
+    queryset = Product.objects.all()
+    serializer_class = ProductSerializer
