@@ -216,6 +216,10 @@ REST_FRAMEWORK = {
         "accounts.authentication.CustomSessionAuthentication",
         
     ],
+    
+    "DEFAULT_PERMISSION_CLASSES": (
+        "rest_framework.permissions.IsAuthenticated",
+    ),
 }
 
 SALES_MANAGER_EMAIL    = "sales@shop"

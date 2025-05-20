@@ -1,5 +1,4 @@
-from rest_framework.decorators import api_view
-from .models import Review
+"""from .models import Review
 from .serializers import ReviewSerializer
 from orders.models import OrderItem
 from accounts.models import User
@@ -8,6 +7,12 @@ from django.http import JsonResponse
 from django.views.decorators.csrf import csrf_exempt
 import json
 from django.db import models
+from rest_framework.decorators import api_view, authentication_classes, permission_classes
+from rest_framework.permissions import IsAuthenticated, AllowAny
+from rest_framework.response import Response
+from .models import Review
+from .serializers import ReviewSerializer
+from accounts.permissions import IsProductManager
 
 @csrf_exempt
 @api_view(['POST'])
@@ -133,7 +138,7 @@ def add_review(request):
 @csrf_exempt
 @api_view(['GET'])
 def get_product_reviews(request, product_id):
-    """Get all reviews with a rating or a comment for a specific product. Comments are only shown if approved."""
+    #Get all reviews with a rating or a comment for a specific product. Comments are only shown if approved.
     try:
         reviews = Review.objects.filter(
             product_id=product_id
@@ -153,7 +158,94 @@ def get_product_reviews(request, product_id):
 @csrf_exempt
 @api_view(['GET'])
 def get_my_reviews(request):
-    """Get all reviews by the current user (both approved and pending)."""
+    #Get all reviews by the current user (both approved and pending).
     reviews = Review.objects.filter(user=request.user).order_by('-created_at')
     serializer = ReviewSerializer(reviews, many=True)
     return JsonResponse(serializer.data)
+
+@api_view(['GET'])
+@permission_classes([IsProductManager])
+def pending_reviews(request):
+    qs = Review.objects.filter(comment__gt='', approved=False).order_by('created_at')
+    serializer = ReviewSerializer(qs, many=True)
+    return Response(serializer.data)
+
+@api_view(['POST'])
+@permission_classes([IsProductManager])
+def approve_comment(request, pk):
+    comment = Comment.objects.get(pk=pk)
+    comment.is_approved = True
+    comment.save()
+    return Response({'message': 'Comment approved'})"""
+
+
+from rest_framework.decorators import api_view, permission_classes
+from rest_framework.permissions import IsAuthenticated, AllowAny
+from rest_framework.response import Response
+from accounts.permissions import IsProductManager
+from .models import Review
+from .serializers import ReviewSerializer
+from orders.models import OrderItem
+from products.models import Product
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def add_review(request):
+    user = request.user
+    product_id = request.data.get('product_id')
+    rating = request.data.get('rating')
+    comment = request.data.get('comment', '').strip()
+    if not product_id or (rating in [None, ''] and not comment):
+        return Response({'error': 'Rating or comment required'}, status=400)
+    try:
+        product = Product.objects.get(pk=product_id)
+    except Product.DoesNotExist:
+        return Response({'error': 'Product not found'}, status=404)
+    if not OrderItem.objects.filter(order__user=user, product=product, order__status='delivered').exists():
+        return Response({'error': 'Cannot review without purchase'}, status=403)
+    review, created = Review.objects.get_or_create(user=user, product=product, defaults={'rating': rating, 'comment': comment, 'approved': False if comment else True})
+    if not created:
+        review.rating = rating if rating not in [None, ''] else review.rating
+        if comment:
+            review.comment = comment
+            review.approved = False
+        review.save()
+    # update product aggregate
+    ratings = list(Review.objects.filter(product=product, rating__isnull=False).values_list('rating', flat=True))
+    product.rating_count = len(ratings)
+    product.avg_rating = sum(ratings) / product.rating_count if ratings else 0
+    product.save()
+    return Response({'review': ReviewSerializer(review).data})
+
+@api_view(['GET'])
+@permission_classes([AllowAny])
+def get_product_reviews(request, product_id):
+    qs = Review.objects.filter(product_id=product_id).order_by('-created_at')
+    data = ReviewSerializer(qs, many=True).data
+    for r in data:
+        if not r['approved']:
+            r['comment'] = ''
+    return Response(data)
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def get_my_reviews(request):
+    qs = Review.objects.filter(user=request.user).order_by('-created_at')
+    return Response(ReviewSerializer(qs, many=True).data)
+
+@api_view(['GET'])
+@permission_classes([IsProductManager])
+def pending_reviews(request):
+    qs = Review.objects.filter(approved=False, comment__gt='').order_by('created_at')
+    return Response(ReviewSerializer(qs, many=True).data)
+
+@api_view(['POST'])
+@permission_classes([IsProductManager])
+def approve_comment(request, pk):
+    try:
+        review = Review.objects.get(pk=pk)
+    except Review.DoesNotExist:
+        return Response({'error': 'Review not found'}, status=404)
+    review.approved = True
+    review.save()
+    return Response({'message': 'Comment approved'})

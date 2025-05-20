@@ -1,6 +1,6 @@
-from rest_framework import generics, status
+"""from rest_framework import generics, status
 from rest_framework.decorators import api_view, permission_classes
-from rest_framework.permissions import AllowAny
+from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 from django.db import models
 from django.db.models import Q
@@ -13,7 +13,7 @@ from accounts.authentication import CustomSessionAuthentication
 import json
 
 from .models import Product, Cart, CartItem
-from .serializers import ProductSerializer
+from .serializers import ProductSerializer, CommentSerializer 
 from accounts.models import User
 
 class ProductListView(generics.ListAPIView):
@@ -218,3 +218,91 @@ def update_cart_quantity(request):
     except Exception as e:
         return JsonResponse({'error': str(e)}, status=500)
 
+@api_view(['POST'])
+@permission_classes([IsProductManager])
+def add_product(request):
+    serializer = ProductSerializer(data=request.data)
+    serializer.is_valid(raise_exception=True)
+    serializer.save()
+    return Response(serializer.data)
+
+@api_view(['POST'])
+@permission_classes([IsProductManager])
+def manage_stock(request):
+    product_id = request.data.get('product_id')
+    new_qty    = request.data.get('quantity')
+    product = Product.objects.get(id=product_id)
+    product.stock = new_qty
+    product.save()
+    return Response({'message': 'Stock updated'})"""
+
+
+
+
+from rest_framework.decorators import api_view, permission_classes
+from rest_framework.permissions import AllowAny
+from rest_framework.response import Response
+from accounts.authentication import CustomSessionAuthentication
+from accounts.permissions import IsProductManager
+from .models import Product, Cart, CartItem
+from .serializers import ProductSerializer
+from django.db import models
+
+@api_view(['POST'])
+@permission_classes([AllowAny])
+def add_to_cart(request):
+    product_id = request.data.get('product_id')
+    quantity = int(request.data.get('quantity', 1))
+    try:
+        product = Product.objects.get(pk=product_id)
+    except Product.DoesNotExist:
+        return Response({'error': 'Product not found'}, status=404)
+    if product.stock_quantity < quantity:
+        return Response({'error': 'Insufficient stock'}, status=400)
+    user = request.user if request.user.is_authenticated else None
+    if user:
+        cart, _ = Cart.objects.get_or_create(user=user)
+    else:
+        session_id = request.session.session_key or request.session.create()
+        cart, _ = Cart.objects.get_or_create(session_id=session_id)
+    cart_item, created = CartItem.objects.get_or_create(cart=cart, product=product, defaults={'quantity': quantity})
+    if not created:
+        cart_item.quantity += quantity
+        cart_item.save()
+    return Response({'message': 'Added to cart'})
+
+@api_view(['GET'])
+@permission_classes([AllowAny])
+def get_cart(request):
+    user = request.user if request.user.is_authenticated else None
+    cart = Cart.objects.filter(user=user).first() if user else Cart.objects.filter(session_id=request.session.session_key).first()
+    if not cart:
+        return Response({'cart': []})
+    data = [{'id': i.product.id, 'name': i.product.name, 'image_url': i.product.image_url, 'quantity': i.quantity, 'price': float(i.product.price)} for i in cart.items.all()]
+    return Response({'cart': data})
+
+@api_view(['POST'])
+@permission_classes([AllowAny])
+def remove_from_cart(request):
+    product_id = request.data.get('product_id')
+    user = request.user if request.user.is_authenticated else None
+    cart = Cart.objects.filter(user=user).first() if user else Cart.objects.filter(session_id=request.session.session_key).first()
+    if cart:
+        CartItem.objects.filter(cart=cart, product_id=product_id).delete()
+    return Response({'message': 'Removed from cart'})
+
+@api_view(['POST'])
+@permission_classes([AllowAny])
+def update_cart_quantity(request):
+    product_id = request.data.get('product_id')
+    quantity = int(request.data.get('quantity', 1))
+    user = request.user if request.user.is_authenticated else None
+    cart = Cart.objects.filter(user=user).first() if user else Cart.objects.filter(session_id=request.session.session_key).first()
+    if not cart:
+        return Response({'error': 'Cart not found'}, status=404)
+    item = CartItem.objects.filter(cart=cart, product_id=product_id).first()
+    if not item:
+        return Response({'error': 'Item not in cart'}, status=404)
+    item.quantity = quantity
+    item.save()
+    return Response({'message': 'Quantity updated'})

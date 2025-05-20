@@ -6,6 +6,7 @@ from .views import (
     logout,
     get_current_user,
     csrf_token,
+    
 )
 
 # Product-manager–only views
@@ -25,6 +26,7 @@ urlpatterns = [
     path("logout/", logout, name="logout"),
     path("me/",     get_current_user, name="get_current_user"),
     path('csrf-token/', csrf_token, name='csrf_token'),
+    
 
     # pm endpointleri
 
