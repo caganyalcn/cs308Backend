@@ -72,6 +72,10 @@ def login(request):
             user.save(update_fields=['role'])
 
         auth_login(request, user)
+        # manuel olarak legacy session_id anahtarımızı da set edelim
+        request.session['user_id'] = user.id
+        request.session.modified = True
+        request.session.save()
         return Response({'message': 'Login successful', 'role': user.role})
 
     # ——— 2️⃣ Normal kullanıcı girişi ———
@@ -84,6 +88,9 @@ def login(request):
         return Response({'message': 'Invalid credentials'}, status=401)
 
     auth_login(request, user)
+    request.session['user_id'] = user.id
+    request.session.modified = True
+    request.session.save()
     merge_guest_cart_to_user(request, user)
     return Response({
         'message': 'Login successful',

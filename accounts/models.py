@@ -1,20 +1,25 @@
 from django.db import models
 from django.contrib.auth.hashers import make_password, check_password
+from django.contrib.auth.models import AbstractBaseUser, PermissionsMixin
+from django.utils import timezone
 
 class User(models.Model):
     name = models.CharField(max_length=100)
     surname = models.CharField(max_length=100)
     email = models.EmailField(unique=True)
     password = models.CharField(max_length=255)
+    last_login = models.DateTimeField(default=timezone.now)
     
     role_customer = "customer"
     role_sales_manager = "sales_manager"
     role_product_manager = "product_manager"
+    
 
     role_choices = [
         (role_customer, "Customer"),
         (role_sales_manager, "Sales Manager"),
         (role_product_manager, "Product Manager")
+
     ]
     role = models.CharField( 
         max_length=20, choices=role_choices, default=role_customer

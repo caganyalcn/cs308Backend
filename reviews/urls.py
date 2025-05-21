@@ -1,5 +1,5 @@
 from django.urls import path
-from .views import add_review, get_product_reviews, get_my_reviews, pending_reviews, approve_comment
+from .views import (add_review, get_product_reviews, get_my_reviews, pending_reviews, approve_comment)
 
 urlpatterns = [
     path('add/', add_review, name='add_review'),

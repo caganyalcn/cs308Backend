@@ -1,5 +1,7 @@
 from django.urls import path
-from .views import hello_sales, set_price, set_discount, invoices_between, revenue_report, revenue_chart, invoices_pdf
+from .views import (
+    hello_sales, set_price, set_discount, invoices_between, revenue_report, revenue_chart, invoices_pdf
+    )
 
 urlpatterns = [
     path("hello/", hello_sales),
