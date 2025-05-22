@@ -43,7 +43,7 @@ def signup(request):
             print("Parsed JSON data:", data)
             
             # Validate required fields
-            required_fields = ['name', 'surname', 'email', 'password']
+            required_fields = ['name', 'surname', 'email', 'password', 'delivery_address']
             missing_fields = [field for field in required_fields if field not in data]
             if missing_fields:
                 return JsonResponse({

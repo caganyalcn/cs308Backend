@@ -13,6 +13,7 @@ class User(models.Model):
     email = models.EmailField(unique=True)
     password = models.CharField(max_length=255)
     role = models.IntegerField(choices=ROLE_CHOICES, default=0)
+    delivery_address = models.CharField(max_length=255, null=False, blank=False, default='Default Address')
 
     def save(self, *args, **kwargs):
         # Always hash the password on first save

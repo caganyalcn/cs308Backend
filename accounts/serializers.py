@@ -4,10 +4,11 @@ from .models import User
 class UserSerializer(serializers.ModelSerializer):
     class Meta:
         model = User
-        fields = ['id', 'name', 'surname', 'email', 'password']
+        fields = ['id', 'name', 'surname', 'email', 'password', 'delivery_address']
         extra_kwargs = {
             'password': {'write_only': True},
-            'email': {'required': True}
+            'email': {'required': True},
+            'delivery_address': {'required': True}
         }
 
     def validate_email(self, value):
