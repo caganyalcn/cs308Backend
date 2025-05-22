@@ -9,7 +9,11 @@ class CategorySerializer(serializers.ModelSerializer):
 
 class ProductSerializer(serializers.ModelSerializer):
     category_name = serializers.CharField(source='category.name', read_only=True)
+    category_id = serializers.IntegerField(source='category.id', read_only=True)
     
     class Meta:
         model = Product
-        fields = '__all__'
+        fields = ['id', 'name', 'model', 'serial_number', 'description', 'price', 
+                 'stock_quantity', 'category_id', 'category_name', 'warranty_status', 
+                 'distributor_info', 'image_url', 'avg_rating', 'rating_count', 
+                 'created_at', 'updated_at']

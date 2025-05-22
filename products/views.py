@@ -25,7 +25,11 @@ class ProductListView(generics.ListAPIView):
 
         category = self.request.query_params.get('category')
         if category:
-            queryset = queryset.filter(category__icontains=category)
+            try:
+                category_id = int(category)
+                queryset = queryset.filter(category_id=category_id)
+            except (ValueError, TypeError):
+                pass
 
         search = self.request.query_params.get('search')
         if search:
@@ -39,11 +43,15 @@ class ProductListView(generics.ListAPIView):
             queryset = queryset.order_by('price')
         elif sort == 'price_desc':
             queryset = queryset.order_by('-price')
-
         elif sort == 'popularity':
             queryset = queryset.order_by('-rating')
 
         return queryset
+
+    def list(self, request, *args, **kwargs):
+        queryset = self.get_queryset()
+        serializer = self.get_serializer(queryset, many=True)
+        return Response({"products": serializer.data})
 
 # ✅ Tek ürün detay görüntüleme
 
@@ -377,15 +385,14 @@ def delete_category(request, category_id):
 
 @require_http_methods(["GET"])
 def list_categories(request):
-    user_id = request.session.get('user_id')
-    if not user_id:
-        return JsonResponse({"error": "Authentication required"}, status=401)
-    
     try:
         categories = Category.objects.all()
         serializer = CategorySerializer(categories, many=True)
-        return JsonResponse({"categories": serializer.data})
+        response_data = {"categories": serializer.data}
+        print("Sending categories response:", response_data)  # Debug log
+        return JsonResponse(response_data)
     except Exception as e:
+        print("Error in list_categories:", str(e))  # Debug log
         return JsonResponse({"error": str(e)}, status=400)
 
 @csrf_exempt
