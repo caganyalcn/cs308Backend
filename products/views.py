@@ -8,11 +8,12 @@ from django.core.exceptions import ValidationError
 from django.views.decorators.csrf import csrf_exempt
 from django.http import JsonResponse
 from django.contrib.auth.decorators import login_required
+from django.views.decorators.http import require_http_methods
 
 import json
 
-from .models import Product, Cart, CartItem
-from .serializers import ProductSerializer
+from .models import Product, Cart, CartItem, Category
+from .serializers import ProductSerializer, CategorySerializer
 from accounts.models import User
 
 # ✅ Ürünleri listeleme (filtreleme, arama, sıralama)
@@ -209,4 +210,282 @@ def update_cart_quantity(request):
         return JsonResponse({'message': 'Adet güncellendi'})
     except Exception as e:
         return JsonResponse({'error': str(e)}, status=500)
+
+def is_product_manager(user):
+    return user.role == 1
+
+@csrf_exempt
+@require_http_methods(["POST"])
+def create_product(request):
+    user_id = request.session.get('user_id')
+    if not user_id:
+        return JsonResponse({"error": "Authentication required"}, status=401)
+    
+    user = User.objects.get(id=user_id)
+    if not is_product_manager(user):
+        return JsonResponse({"error": "Only product managers can create products"}, status=403)
+    
+    try:
+        data = json.loads(request.body)
+        serializer = ProductSerializer(data=data)
+        if serializer.is_valid():
+            product = serializer.save()
+            return JsonResponse({
+                "message": "Product created successfully",
+                "product": ProductSerializer(product).data
+            }, status=201)
+        return JsonResponse({"error": serializer.errors}, status=400)
+    except Exception as e:
+        return JsonResponse({"error": str(e)}, status=400)
+
+@csrf_exempt
+@require_http_methods(["PUT"])
+def update_product(request, product_id):
+    user_id = request.session.get('user_id')
+    if not user_id:
+        return JsonResponse({"error": "Authentication required"}, status=401)
+    
+    user = User.objects.get(id=user_id)
+    if not is_product_manager(user):
+        return JsonResponse({"error": "Only product managers can update products"}, status=403)
+    
+    try:
+        product = Product.objects.get(id=product_id)
+        data = json.loads(request.body)
+        serializer = ProductSerializer(product, data=data, partial=True)
+        if serializer.is_valid():
+            product = serializer.save()
+            return JsonResponse({
+                "message": "Product updated successfully",
+                "product": ProductSerializer(product).data
+            })
+        return JsonResponse({"error": serializer.errors}, status=400)
+    except Product.DoesNotExist:
+        return JsonResponse({"error": "Product not found"}, status=404)
+    except Exception as e:
+        return JsonResponse({"error": str(e)}, status=400)
+
+@csrf_exempt
+@require_http_methods(["DELETE"])
+def delete_product(request, product_id):
+    user_id = request.session.get('user_id')
+    if not user_id:
+        return JsonResponse({"error": "Authentication required"}, status=401)
+    
+    user = User.objects.get(id=user_id)
+    if not is_product_manager(user):
+        return JsonResponse({"error": "Only product managers can delete products"}, status=403)
+    
+    try:
+        product = Product.objects.get(id=product_id)
+        product.delete()
+        return JsonResponse({"message": "Product deleted successfully"})
+    except Product.DoesNotExist:
+        return JsonResponse({"error": "Product not found"}, status=404)
+    except Exception as e:
+        return JsonResponse({"error": str(e)}, status=400)
+
+@require_http_methods(["GET"])
+def list_products(request):
+    user_id = request.session.get('user_id')
+    if not user_id:
+        return JsonResponse({"error": "Authentication required"}, status=401)
+    
+    try:
+        products = Product.objects.all()
+        serializer = ProductSerializer(products, many=True)
+        return JsonResponse({"products": serializer.data})
+    except Exception as e:
+        return JsonResponse({"error": str(e)}, status=400)
+
+# Category Management Views
+@csrf_exempt
+@require_http_methods(["POST"])
+def create_category(request):
+    user_id = request.session.get('user_id')
+    if not user_id:
+        return JsonResponse({"error": "Authentication required"}, status=401)
+    
+    user = User.objects.get(id=user_id)
+    if not is_product_manager(user):
+        return JsonResponse({"error": "Only product managers can create categories"}, status=403)
+    
+    try:
+        data = json.loads(request.body)
+        serializer = CategorySerializer(data=data)
+        if serializer.is_valid():
+            category = serializer.save()
+            return JsonResponse({
+                "message": "Category created successfully",
+                "category": CategorySerializer(category).data
+            }, status=201)
+        return JsonResponse({"error": serializer.errors}, status=400)
+    except Exception as e:
+        return JsonResponse({"error": str(e)}, status=400)
+
+@csrf_exempt
+@require_http_methods(["PUT"])
+def update_category(request, category_id):
+    user_id = request.session.get('user_id')
+    if not user_id:
+        return JsonResponse({"error": "Authentication required"}, status=401)
+    
+    user = User.objects.get(id=user_id)
+    if not is_product_manager(user):
+        return JsonResponse({"error": "Only product managers can update categories"}, status=403)
+    
+    try:
+        category = Category.objects.get(id=category_id)
+        data = json.loads(request.body)
+        serializer = CategorySerializer(category, data=data, partial=True)
+        if serializer.is_valid():
+            category = serializer.save()
+            return JsonResponse({
+                "message": "Category updated successfully",
+                "category": CategorySerializer(category).data
+            })
+        return JsonResponse({"error": serializer.errors}, status=400)
+    except Category.DoesNotExist:
+        return JsonResponse({"error": "Category not found"}, status=404)
+    except Exception as e:
+        return JsonResponse({"error": str(e)}, status=400)
+
+@csrf_exempt
+@require_http_methods(["DELETE"])
+def delete_category(request, category_id):
+    user_id = request.session.get('user_id')
+    if not user_id:
+        return JsonResponse({"error": "Authentication required"}, status=401)
+    
+    user = User.objects.get(id=user_id)
+    if not is_product_manager(user):
+        return JsonResponse({"error": "Only product managers can delete categories"}, status=403)
+    
+    try:
+        category = Category.objects.get(id=category_id)
+        # Check if category has any products
+        if Product.objects.filter(category=category).exists():
+            return JsonResponse({
+                "error": "Cannot delete category with associated products"
+            }, status=400)
+        category.delete()
+        return JsonResponse({"message": "Category deleted successfully"})
+    except Category.DoesNotExist:
+        return JsonResponse({"error": "Category not found"}, status=404)
+    except Exception as e:
+        return JsonResponse({"error": str(e)}, status=400)
+
+@require_http_methods(["GET"])
+def list_categories(request):
+    user_id = request.session.get('user_id')
+    if not user_id:
+        return JsonResponse({"error": "Authentication required"}, status=401)
+    
+    try:
+        categories = Category.objects.all()
+        serializer = CategorySerializer(categories, many=True)
+        return JsonResponse({"categories": serializer.data})
+    except Exception as e:
+        return JsonResponse({"error": str(e)}, status=400)
+
+@csrf_exempt
+@require_http_methods(["PUT"])
+def update_stock(request, product_id):
+    user_id = request.session.get('user_id')
+    if not user_id:
+        return JsonResponse({"error": "Authentication required"}, status=401)
+    
+    user = User.objects.get(id=user_id)
+    if not is_product_manager(user):
+        return JsonResponse({"error": "Only product managers can update stock"}, status=403)
+    
+    try:
+        product = Product.objects.get(id=product_id)
+        data = json.loads(request.body)
+        new_quantity = int(data.get('stock_quantity', 0))
+
+        if new_quantity < 0:
+            return JsonResponse({"error": "Stock cannot be negative"}, status=400)
+
+        product.stock_quantity = new_quantity
+        product.save()
+
+        return JsonResponse({
+            "message": "Stock updated successfully",
+            "product": ProductSerializer(product).data
+        })
+    except Product.DoesNotExist:
+        return JsonResponse({"error": "Product not found"}, status=404)
+    except Exception as e:
+        return JsonResponse({"error": str(e)}, status=400)
+
+@require_http_methods(["GET"])
+def get_stock_history(request, product_id):
+    user_id = request.session.get('user_id')
+    if not user_id:
+        return JsonResponse({"error": "Authentication required"}, status=401)
+    
+    user = User.objects.get(id=user_id)
+    if not is_product_manager(user):
+        return JsonResponse({"error": "Only product managers can view stock history"}, status=403)
+    
+    try:
+        product = Product.objects.get(id=product_id)
+        history = StockHistory.objects.filter(product=product).order_by('-created_at')
+        serializer = StockHistorySerializer(history, many=True)
+        return JsonResponse({"stock_history": serializer.data})
+    except Product.DoesNotExist:
+        return JsonResponse({"error": "Product not found"}, status=404)
+    except Exception as e:
+        return JsonResponse({"error": str(e)}, status=400)
+
+@require_http_methods(["GET"])
+def get_low_stock_products(request):
+    user_id = request.session.get('user_id')
+    if not user_id:
+        return JsonResponse({"error": "Authentication required"}, status=401)
+    
+    user = User.objects.get(id=user_id)
+    if not is_product_manager(user):
+        return JsonResponse({"error": "Only product managers can view low stock products"}, status=403)
+    
+    try:
+        low_stock_products = Product.objects.filter(
+            stock_quantity__lte=models.F('low_stock_threshold')
+        )
+        serializer = ProductSerializer(low_stock_products, many=True)
+        return JsonResponse({"low_stock_products": serializer.data})
+    except Exception as e:
+        return JsonResponse({"error": str(e)}, status=400)
+
+@csrf_exempt
+@require_http_methods(["PUT"])
+def update_low_stock_threshold(request, product_id):
+    user_id = request.session.get('user_id')
+    if not user_id:
+        return JsonResponse({"error": "Authentication required"}, status=401)
+    
+    user = User.objects.get(id=user_id)
+    if not is_product_manager(user):
+        return JsonResponse({"error": "Only product managers can update low stock threshold"}, status=403)
+    
+    try:
+        product = Product.objects.get(id=product_id)
+        data = json.loads(request.body)
+        new_threshold = int(data.get('low_stock_threshold', 10))
+
+        if new_threshold < 0:
+            return JsonResponse({"error": "Threshold cannot be negative"}, status=400)
+
+        product.low_stock_threshold = new_threshold
+        product.save()
+
+        return JsonResponse({
+            "message": "Low stock threshold updated successfully",
+            "product": ProductSerializer(product).data
+        })
+    except Product.DoesNotExist:
+        return JsonResponse({"error": "Product not found"}, status=404)
+    except Exception as e:
+        return JsonResponse({"error": str(e)}, status=400)
 

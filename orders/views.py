@@ -1,13 +1,14 @@
 from django.shortcuts import render
 from django.core.mail import send_mail
-from django.http import JsonResponse
+from django.http import JsonResponse, HttpResponse
 from django.views.decorators.csrf import csrf_exempt
 from .models import Order, OrderItem
 from products.models import Cart, CartItem, Product
 from .utils import generate_invoice_pdf
 from accounts.models import User
-from django.views.decorators.http import require_POST, require_GET
+from django.views.decorators.http import require_POST, require_GET, require_http_methods
 import json
+import os
 
 from django.core.mail import EmailMessage
 from .serializers import OrderSerializer
@@ -81,16 +82,18 @@ def place_order(request):
 
     return JsonResponse({'message': 'Sipariş alındı, fatura gönderildi'})
 
+# Product Manager specific endpoints
 @csrf_exempt
-@require_POST
+@require_http_methods(["PUT"])
 def update_order_status(request, order_id):
-    # session-based authentication
     user_id = request.session.get('user_id')
     if not user_id:
-        return JsonResponse({'error': 'User not authenticated'}, status=401)
+        return JsonResponse({'error': 'Authentication required'}, status=401)
+    
     user = User.objects.get(id=user_id)
-    if not user.is_admin:
-        return JsonResponse({'error': 'Permission denied'}, status=403)
+    if user.role != 1:  # Only product managers can update status
+        return JsonResponse({'error': 'Only product managers can update order status'}, status=403)
+    
     try:
         data = json.loads(request.body)
         new_status = data.get('status')
@@ -99,65 +102,86 @@ def update_order_status(request, order_id):
             return JsonResponse({'error': 'Invalid status value'}, status=400)
 
         order = Order.objects.get(id=order_id)
+        
+        # Validate status transition
+        if order.status == 'delivered' and new_status != 'delivered':
+            return JsonResponse({'error': 'Cannot change status of delivered order'}, status=400)
+        
+        if order.status == 'in-transit' and new_status == 'processing':
+            return JsonResponse({'error': 'Cannot revert to processing status'}, status=400)
+
         order.status = new_status
         order.save()
 
-        return JsonResponse({'message': f'Order {order_id} updated to {new_status}'})
+        return JsonResponse({
+            'message': f'Order {order_id} updated to {new_status}',
+            'order': {
+                'id': order.id,
+                'status': order.status,
+                'delivery_address': order.delivery_address,
+                'total_price': float(order.total_price),
+                'customer_id': order.user.id,
+                'customer_name': order.user.get_full_name() or order.user.username
+            }
+        })
     except Order.DoesNotExist:
         return JsonResponse({'error': 'Order not found'}, status=404)
     except Exception as e:
-        return JsonResponse({'error': str(e)}, status=500)
+        return JsonResponse({'error': str(e)}, status=400)
 
-@csrf_exempt
-@require_GET
+@require_http_methods(["GET"])
 def delivery_list(request):
-    # session-based authentication
     user_id = request.session.get('user_id')
     if not user_id:
-        return JsonResponse({'error': 'User not authenticated'}, status=401)
+        return JsonResponse({'error': 'Authentication required'}, status=401)
+    
     user = User.objects.get(id=user_id)
-    if not user.is_admin:
-        return JsonResponse({'error': 'Permission denied'}, status=403)
-    orders = Order.objects.all().select_related('user').prefetch_related('items__product')
-
-    result = []
-    for order in orders:
-        items = []
-        for item in order.items.all():
-            items.append({
-                "product_id": item.product.id,
-                "product_name": item.product.name,
-                "quantity": item.quantity,
-                "price_each": float(item.price_at_purchase)
-            })
-
-        result.append({
-            "delivery_id": order.id,
-            "customer_id": order.user.id,
-            "customer_name": order.user.get_full_name() or order.user.username,
-            "total_price": float(order.total_price),
-            "delivery_address": order.delivery_address,
-            "status": order.status,
-            "items": items
-        })
-
-    return JsonResponse({"deliveries": result}, safe=False)
-
-@csrf_exempt
-@require_GET
-def get_latest_order(request):
-    """
-    Retrieves the latest order for the currently authenticated user.
-    """
-    user_id = request.session.get('user_id')
-    if not user_id:
-        return JsonResponse({'error': 'User not authenticated'}, status=401)
-    user = User.objects.get(id=user_id)
+    if user.role != 1:  # Only product managers can view delivery list
+        return JsonResponse({'error': 'Only product managers can view delivery list'}, status=403)
     
     try:
+        # Get all orders with related data
+        orders = Order.objects.all().select_related('user').prefetch_related('items__product')
+
+        result = []
+        for order in orders:
+            items = []
+            for item in order.items.all():
+                items.append({
+                    "product_id": item.product.id,
+                    "product_name": item.product.name,
+                    "quantity": item.quantity,
+                    "price_each": float(item.price_at_purchase)
+                })
+
+            result.append({
+                "delivery_id": order.id,
+                "customer_id": order.user.id,
+                "customer_name": order.user.get_full_name() or order.user.username,
+                "customer_email": order.user.email,
+                "total_price": float(order.total_price),
+                "delivery_address": order.delivery_address,
+                "status": order.status,
+                "created_at": order.created_at,
+                "items": items
+            })
+
+        return JsonResponse({"deliveries": result})
+    except Exception as e:
+        return JsonResponse({'error': str(e)}, status=400)
+
+# User specific endpoints
+@require_http_methods(["GET"])
+def get_latest_order(request):
+    user_id = request.session.get('user_id')
+    if not user_id:
+        return JsonResponse({'error': 'Authentication required'}, status=401)
+    
+    try:
+        user = User.objects.get(id=user_id)
         latest_order = Order.objects.filter(user=user).latest('created_at')
-        # fetch related order items
         order_items = OrderItem.objects.filter(order=latest_order)
+        
         items_data = [
             {
                 'product_id': item.product.id,
@@ -168,6 +192,7 @@ def get_latest_order(request):
             }
             for item in order_items
         ]
+        
         response_data = {
             'order_id': latest_order.id,
             'created_at': latest_order.created_at,
@@ -179,49 +204,137 @@ def get_latest_order(request):
         return JsonResponse(response_data)
     except Order.DoesNotExist:
         return JsonResponse({'message': 'No orders found for this user.'}, status=404)
+    except Exception as e:
+        return JsonResponse({'error': str(e)}, status=400)
 
-@csrf_exempt
-@require_GET
+@require_http_methods(["GET"])
 def get_all_orders_for_user(request):
-    """
-    Retrieves all orders for the currently authenticated user, including their order items.
-    """
-    # Debug logs for session-based auth
-    print('get_all_orders_for_user invoked')
-    print('Session key:', request.session.session_key)
     user_id = request.session.get('user_id')
-    print('Retrieved user_id from session:', user_id)
     if not user_id:
-        print('Authentication failed: no user_id in session, returning 401')
-        return JsonResponse({'error': 'User not authenticated'}, status=401)
+        return JsonResponse({'error': 'Authentication required'}, status=401)
+    
+    try:
+        user = User.objects.get(id=user_id)
+        orders = Order.objects.filter(user=user).order_by('-created_at')
+        
+        if not orders.exists():
+            return JsonResponse({'message': 'No orders found for this user.'}, status=404)
+        
+        orders_data = []
+        for order in orders:
+            order_items = OrderItem.objects.filter(order=order)
+            items_data = [
+                {
+                    'product_id': item.product.id,
+                    'product_name': item.product.name,
+                    'image_url': item.product.image_url,
+                    'quantity': item.quantity,
+                    'price_each': float(item.price_at_purchase)
+                }
+                for item in order_items
+            ]
+            orders_data.append({
+                'order_id': order.id,
+                'created_at': order.created_at,
+                'total_price': float(order.total_price),
+                'delivery_address': order.delivery_address,
+                'status': order.status,
+                'items': items_data
+            })
+        return JsonResponse({'orders': orders_data})
+    except Exception as e:
+        return JsonResponse({'error': str(e)}, status=400)
+
+@require_http_methods(["GET"])
+def get_invoice_details(request, order_id):
+    """Get detailed invoice information for a specific order."""
+    user_id = request.session.get('user_id')
+    if not user_id:
+        return JsonResponse({'error': 'Authentication required'}, status=401)
+    
     user = User.objects.get(id=user_id)
+    if user.role != 1:  # Only product managers can view invoice details
+        return JsonResponse({'error': 'Only product managers can view invoice details'}, status=403)
     
-    orders = Order.objects.filter(user=user).order_by('-created_at')
-    if not orders.exists():
-        return JsonResponse({'message': 'No orders found for this user.'}, status=404)
-    
-    orders_data = []
-    for order in orders:
-        order_items = OrderItem.objects.filter(order=order)
-        items_data = [
-            {
+    try:
+        order = Order.objects.select_related('user').prefetch_related('items__product').get(id=order_id)
+        
+        # Get order items with product details
+        items = []
+        for item in order.items.all():
+            items.append({
                 'product_id': item.product.id,
                 'product_name': item.product.name,
-                'image_url': item.product.image_url,
                 'quantity': item.quantity,
-                'price_each': float(item.price_at_purchase)
-            }
-            for item in order_items
-        ]
-        orders_data.append({
-            'order_id': order.id,
-            'created_at': order.created_at,
-            'total_price': float(order.total_price),
-            'delivery_address': order.delivery_address,
+                'price_each': float(item.price_at_purchase),
+                'total': float(item.price_at_purchase * item.quantity)
+            })
+        
+        # Get invoice PDF path
+        invoice_path = f'invoices/invoice_{order.id}.pdf'
+        has_invoice = os.path.exists(invoice_path)
+        
+        response_data = {
+            'invoice_id': order.id,
+            'customer': {
+                'id': order.user.id,
+                'name': order.user.get_full_name() or order.user.username,
+                'email': order.user.email,
+                'address': order.delivery_address
+            },
+            'order_date': order.created_at,
             'status': order.status,
-            'items': items_data
-        })
-    return JsonResponse({'orders': orders_data})
+            'items': items,
+            'subtotal': float(order.total_price),
+            'has_invoice_pdf': has_invoice,
+            'invoice_pdf_url': f'/api/orders/invoice/{order.id}/pdf/' if has_invoice else None
+        }
+        
+        return JsonResponse(response_data)
+    except Order.DoesNotExist:
+        return JsonResponse({'error': 'Order not found'}, status=404)
+    except Exception as e:
+        return JsonResponse({'error': str(e)}, status=400)
+
+@require_http_methods(["GET"])
+def get_invoice_pdf(request, order_id):
+    """Get the PDF file of an invoice."""
+    user_id = request.session.get('user_id')
+    if not user_id:
+        return JsonResponse({'error': 'Authentication required'}, status=401)
+    
+    user = User.objects.get(id=user_id)
+    if user.role != 1:  # Only product managers can view invoice PDFs
+        return JsonResponse({'error': 'Only product managers can view invoice PDFs'}, status=403)
+    
+    try:
+        order = Order.objects.get(id=order_id)
+        invoice_path = f'invoices/invoice_{order.id}.pdf'
+        
+        if not os.path.exists(invoice_path):
+            return JsonResponse({'error': 'Invoice PDF not found'}, status=404)
+        
+        # Generate new PDF if it doesn't exist
+        if not os.path.exists(invoice_path):
+            items = []
+            for item in order.items.all():
+                items.append({
+                    "name": item.product.name,
+                    "quantity": item.quantity,
+                    "price": float(item.price_at_purchase)
+                })
+            generate_invoice_pdf(order.id, order.user.email, items, float(order.total_price))
+        
+        # Return the PDF file
+        with open(invoice_path, 'rb') as pdf:
+            response = HttpResponse(pdf.read(), content_type='application/pdf')
+            response['Content-Disposition'] = f'inline; filename=invoice_{order.id}.pdf'
+            return response
+            
+    except Order.DoesNotExist:
+        return JsonResponse({'error': 'Order not found'}, status=404)
+    except Exception as e:
+        return JsonResponse({'error': str(e)}, status=400)
 
 
 

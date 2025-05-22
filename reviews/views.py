@@ -8,6 +8,11 @@ from django.http import JsonResponse
 from django.views.decorators.csrf import csrf_exempt
 import json
 from django.db import models
+from django.views.decorators.http import require_http_methods
+
+# Helper function to check if a user is a product manager (assuming role 1 is product manager)
+def is_product_manager(user):
+    return user.role == 1
 
 @csrf_exempt
 @api_view(['POST'])
@@ -157,3 +162,93 @@ def get_my_reviews(request):
     reviews = Review.objects.filter(user=request.user).order_by('-created_at')
     serializer = ReviewSerializer(reviews, many=True)
     return JsonResponse(serializer.data)
+
+@require_http_methods(["GET"])
+def list_all_reviews(request):
+    """Lists all reviews for product managers (including unapproved)."""
+    user_id = request.session.get('user_id')
+    if not user_id:
+        return JsonResponse({'error': 'Authentication required'}, status=401)
+    
+    try:
+        user = User.objects.get(id=user_id)
+        if not is_product_manager(user):
+            return JsonResponse({'error': 'Only product managers can view all reviews'}, status=403)
+        
+        reviews = Review.objects.all().select_related('user', 'product').order_by('-created_at')
+        serializer = ReviewSerializer(reviews, many=True)
+        # Include user name and product name in the response
+        data = serializer.data
+        for review_data in data:
+             review_obj = reviews.get(id=review_data['id'])
+             review_data['customer_name'] = review_obj.user.get_full_name() or review_obj.user.email
+             review_data['product_name'] = review_obj.product.name
+             review_data['product_id'] = review_obj.product.id
+
+        return JsonResponse({"reviews": data})
+    except User.DoesNotExist:
+         return JsonResponse({'error': 'User not found'}, status=404)
+    except Exception as e:
+        return JsonResponse({'error': str(e)}, status=400)
+
+@csrf_exempt
+@require_http_methods(["PUT"])
+def update_review_approval(request, review_id):
+    """Updates the approval status of a review (Product Manager only)."""
+    user_id = request.session.get('user_id')
+    if not user_id:
+        return JsonResponse({'error': 'Authentication required'}, status=401)
+    
+    try:
+        user = User.objects.get(id=user_id)
+        if not is_product_manager(user):
+            return JsonResponse({'error': 'Only product managers can update review approval'}, status=403)
+        
+        try:
+            data = json.loads(request.body)
+            is_approved = data.get('is_approved')
+            if is_approved is None:
+                 return JsonResponse({'error': 'is_approved field is required'}, status=400)
+            
+        except json.JSONDecodeError:
+            return JsonResponse({'error': 'Invalid JSON data'}, status=400)
+
+        try:
+            review = Review.objects.get(id=review_id)
+            review.approved = bool(is_approved)
+            
+            # Store original comment before rejection
+            original_comment = review.comment
+            
+            # If rejecting, set comment to rejection message
+            if not review.approved:
+                review.comment = f"{original_comment}\n\n -- This comment is rejected"
+            
+            review.save()
+
+            # Re-calculate avg_rating and rating_count for the product
+            product = review.product
+            all_ratings = Review.objects.filter(product=product, rating__isnull=False, approved=True).values_list('rating', flat=True)
+            ratings_list = list(map(int, all_ratings))
+            if ratings_list:
+                product.rating_count = len(ratings_list)
+                product.avg_rating = sum(ratings_list) / product.rating_count
+            else:
+                product.rating_count = 0
+                product.avg_rating = 0
+            product.save()
+
+            serializer = ReviewSerializer(review)
+            return JsonResponse({
+                "message": "Review approval status updated successfully", 
+                "review": serializer.data,
+                "status": "rejected" if not review.approved else "approved"
+            })
+            
+        except Review.DoesNotExist:
+            return JsonResponse({'error': 'Review not found'}, status=404)
+            
+    except User.DoesNotExist:
+         return JsonResponse({'error': 'User not found'}, status=404)
+    except Exception as e:
+        return JsonResponse({'error': str(e)}, status=400)

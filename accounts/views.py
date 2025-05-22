@@ -116,7 +116,7 @@ def login(request):
                     return JsonResponse({
                         "message": "Login successful",
                         "user": UserSerializer(user).data,
-                        "is_admin": user.is_admin
+                        "role": user.role
                     })
                 return JsonResponse({"message": "Invalid credentials"}, status=401)
             except User.DoesNotExist:
