@@ -190,3 +190,44 @@ class SimpleModelTests(SimpleTestCase):
 
     def test_orderitem_order_field(self):
         self.assertTrue(hasattr(OrderItem, 'order'))
+
+    def test_orderitem_product_field(self):
+        self.assertTrue(hasattr(OrderItem, 'product'))
+
+    def test_review_user_field(self):
+        self.assertTrue(hasattr(Review, 'user'))
+
+    def test_review_product_field(self):
+        self.assertTrue(hasattr(Review, 'product'))
+
+    def test_review_created_at_auto_add(self):
+        self.assertTrue(hasattr(Review, 'created_at'))
+
+    def test_category_name_unique_meta(self):
+        field = Category._meta.get_field('name')
+        self.assertTrue(field.unique)
+
+    def test_user_email_is_emailfield(self):
+        field = User._meta.get_field('email')
+        self.assertEqual(field.get_internal_type(), 'EmailField')
+
+    def test_product_price_is_decimalfield(self):
+        field = Product._meta.get_field('price')
+        self.assertEqual(field.get_internal_type(), 'DecimalField')
+
+    def test_review_rating_nullable(self):
+        field = Review._meta.get_field('rating')
+        self.assertTrue(field.null)
+
+    def test_review_comment_nullable(self):
+        field = Review._meta.get_field('comment')
+        self.assertTrue(field.null)
+
+    def test_order_status_choices_exist(self):
+        field = Order._meta.get_field('status')
+        self.assertGreater(len(field.choices), 0)
+
+    def test_cartitem_quantity_field_type(self):
+        field = CartItem._meta.get_field('quantity')
+        self.assertEqual(field.get_internal_type(), 'IntegerField')
+
