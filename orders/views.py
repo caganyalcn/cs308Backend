@@ -37,6 +37,18 @@ def send_cancellation_email(user_email, order_id, order_items, total_price):
 
     send_mail(subject, message_body, from_email, [user_email], fail_silently=False)
 
+def send_refund_email(user_email, order_id, order_items, total_price):
+    subject = f'Refund Approved for Order #{order_id} - ÇiftlikBank'
+    message_body = f"Merhaba,\n\nSiparişiniz #{order_id} için iade talebiniz onaylanmıştır.\n\nİade Edilen Ürünler:\n"
+    for item in order_items:
+        message_body += f"- {item['name']} ({item['quantity']} adet) - Fiyat: {item['price']:.2f} TL\n"
+    message_body += f"\nToplam İade Tutarı: {total_price:.2f} TL\n"
+    message_body += "\nTeşekkür ederiz.\nÇiftlikBank Ekibiniz"
+
+    from_email = settings.DEFAULT_FROM_EMAIL
+
+    send_mail(subject, message_body, from_email, [user_email], fail_silently=False)
+
 @csrf_exempt
 def place_order(request):
     user_id = request.session.get('user_id')
@@ -544,5 +556,80 @@ def refund_waiting_orders(request):
     serializer = OrderSerializer(refund_waiting_orders, many=True)
     
     return JsonResponse(serializer.data, safe=False)
+
+@csrf_exempt
+@require_http_methods(["POST"])
+def approve_refund(request, order_id):
+    user_id = request.session.get('user_id')
+    if not user_id:
+        return JsonResponse({'error': 'Authentication required'}, status=401)
+
+    try:
+        user = User.objects.get(id=user_id)
+        if user.role != 2:  # Only sales managers can approve refunds
+            return JsonResponse({'error': 'Unauthorized. Only sales managers can approve refunds'}, status=403)
+
+        order = Order.objects.get(id=order_id)
+        if order.status != 'refundwaiting':
+            return JsonResponse({'error': 'Only orders in refundwaiting status can be approved'}, status=400)
+
+        # Update order status to refunded
+        order.status = 'refunded'
+        order.save()
+
+        # Increase product stock quantity
+        order_items = OrderItem.objects.filter(order=order)
+        items_data = []
+        for item in order_items:
+            product = item.product
+            product.stock_quantity += item.quantity
+            product.save()
+            
+            items_data.append({
+                'name': product.name,
+                'quantity': item.quantity,
+                'price': float(item.price_at_purchase)
+            })
+
+        # Send refund email
+        send_refund_email(order.user.email, order.id, items_data, float(order.total_price))
+
+        return JsonResponse({'message': f'Refund for order #{order_id} has been approved'})
+
+    except Order.DoesNotExist:
+        return JsonResponse({'error': 'Order not found'}, status=404)
+    except User.DoesNotExist:
+        return JsonResponse({'error': 'User not found'}, status=404)
+    except Exception as e:
+        return JsonResponse({'error': str(e)}, status=400)
+
+@csrf_exempt
+@require_http_methods(["POST"])
+def reject_refund(request, order_id):
+    user_id = request.session.get('user_id')
+    if not user_id:
+        return JsonResponse({'error': 'Authentication required'}, status=401)
+
+    try:
+        user = User.objects.get(id=user_id)
+        if user.role != 2:  # Only sales managers can reject refunds
+            return JsonResponse({'error': 'Unauthorized. Only sales managers can reject refunds'}, status=403)
+
+        order = Order.objects.get(id=order_id)
+        if order.status != 'refundwaiting':
+            return JsonResponse({'error': 'Only orders in refundwaiting status can be rejected'}, status=400)
+
+        # Update order status back to delivered
+        order.status = 'delivered'
+        order.save()
+
+        return JsonResponse({'message': f'Refund request for order #{order_id} has been rejected'})
+
+    except Order.DoesNotExist:
+        return JsonResponse({'error': 'Order not found'}, status=404)
+    except User.DoesNotExist:
+        return JsonResponse({'error': 'User not found'}, status=404)
+    except Exception as e:
+        return JsonResponse({'error': str(e)}, status=400)
 
 
