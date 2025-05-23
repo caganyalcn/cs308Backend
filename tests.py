@@ -175,3 +175,18 @@ class SimpleModelTests(SimpleTestCase):
 
     def test_user_has_role_field(self):
         self.assertTrue(hasattr(User, 'role'))
+    
+    def test_address_user_relation(self):
+        self.assertTrue(hasattr(Address, 'user'))
+
+    def test_product_stock_quantity_field(self):
+        self.assertTrue(hasattr(Product, 'stock_quantity'))
+
+    def test_order_created_at_auto_add(self):
+        self.assertTrue(hasattr(Order, 'created_at'))
+
+    def test_order_has_user_foreign_key(self):
+        self.assertTrue(hasattr(Order, 'user'))
+
+    def test_orderitem_order_field(self):
+        self.assertTrue(hasattr(OrderItem, 'order'))
