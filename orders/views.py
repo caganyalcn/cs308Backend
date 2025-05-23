@@ -523,6 +523,26 @@ def calculate_revenue(request):
     # Just return the total revenue amount as requested
     return JsonResponse(float(total_revenue), safe=False)
 
-
+@csrf_exempt
+@require_http_methods(["GET"])
+def refund_waiting_orders(request):
+    """
+    Get all orders that are in 'refundwaiting' state
+    """
+    
+    user_id = request.session.get('user_id')
+    if not user_id:
+        return JsonResponse({'error': 'Authentication required'}, status=401)
+        
+   
+    user = User.objects.get(id=user_id)
+    if user.role != 2:  
+        return JsonResponse({'error': 'Unauthorized. Only product managers can access this endpoint'}, status=403)
+    
+    # Get all orders in refundwaiting state
+    refund_waiting_orders = Order.objects.filter(status='refundwaiting ')
+    serializer = OrderSerializer(refund_waiting_orders, many=True)
+    
+    return JsonResponse(serializer.data, safe=False)
 
 
