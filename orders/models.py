@@ -13,7 +13,7 @@ class Order(models.Model):
             ('in-transit', 'In Transit'),
             ('delivered', 'Delivered'),
             ('cancelled', 'Cancelled'),
-            ('refundwaiting ', 'RefundWaiting'),
+            ('refundwaiting', 'RefundWaiting'),
             ('refunded', 'Refunded')
         ],
         default='processing'

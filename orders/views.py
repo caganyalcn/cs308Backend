@@ -15,6 +15,7 @@ from django.conf import settings
 
 from .serializers import OrderSerializer
 from datetime import datetime
+from django.utils import timezone
 
 def send_invoice_email(user_email, pdf_path):
     subject = 'Order Invoice - ÇiftlikBank'
@@ -390,6 +391,44 @@ def cancel_order(request, order_id):
         send_cancellation_email(user.email, order.id, items_data, float(order.total_price))
 
         return JsonResponse({'message': f'Sipariş #{order_id} başarıyla iptal edildi.'})
+
+    except Order.DoesNotExist:
+        return JsonResponse({'error': 'Sipariş bulunamadı.'}, status=404)
+    except User.DoesNotExist:
+         return JsonResponse({'error': 'Kullanıcı bulunamadı.'}, status=404)
+    except Exception as e:
+        return JsonResponse({'error': str(e)}, status=400)
+
+@csrf_exempt
+@require_http_methods(["POST"])
+def initiate_refund_request(request, order_id):
+    user_id = request.session.get('user_id')
+    if not user_id:
+        return JsonResponse({'error': 'Authentication required'}, status=401)
+
+    try:
+        user = User.objects.get(id=user_id)
+        order = Order.objects.get(id=order_id)
+
+        # Check if the order belongs to the authenticated user
+        if order.user != user:
+            return JsonResponse({'error': 'Bu sipariş için iade talebi başlatma yetkiniz yok.'}, status=403)
+
+        # Check if the order status is 'delivered'
+        if order.status != 'delivered':
+            return JsonResponse({'error': 'Sadece teslim edilmiş siparişler için iade talebi başlatılabilir.'}, status=400)
+
+        # Check if the purchase date is within the last 30 days
+        from datetime import timedelta
+        time_difference = timezone.now() - order.created_at
+        if time_difference > timedelta(days=30):
+             return JsonResponse({'error': 'İade talebi sadece satın alma tarihinden sonraki 30 gün içinde yapılabilir.'}, status=400)
+
+        # Update order status to refundwaiting
+        order.status = 'refundwaiting'
+        order.save()
+
+        return JsonResponse({'message': f'Sipariş #{order_id} için iade talebi başarıyla başlatıldı.'})
 
     except Order.DoesNotExist:
         return JsonResponse({'error': 'Sipariş bulunamadı.'}, status=404)

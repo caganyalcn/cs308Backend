@@ -1,5 +1,5 @@
 from django.urls import path
-from .views import update_order_status, delivery_list, place_order, get_latest_order, get_all_orders_for_user, get_invoice_details, get_invoice_pdf, orders_by_date_range, calculate_revenue, cancel_order
+from .views import update_order_status, delivery_list, place_order, get_latest_order, get_all_orders_for_user, get_invoice_details, get_invoice_pdf, orders_by_date_range, calculate_revenue, cancel_order, initiate_refund_request
 
 urlpatterns = [
     path('update-status/<int:order_id>/', update_order_status, name='update_order_status'),
@@ -12,5 +12,6 @@ urlpatterns = [
     path('by-date-range/', orders_by_date_range, name='orders_by_date_range'),
     path('calculate-revenue/', calculate_revenue, name='calculate_revenue'),
     path('<int:order_id>/cancel/', cancel_order, name='cancel_order'),
+    path('<int:order_id>/refund-request/', initiate_refund_request, name='initiate_refund_request'),
 ]
 
