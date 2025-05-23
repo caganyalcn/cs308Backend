@@ -334,7 +334,7 @@ def get_invoice_pdf(request, order_id):
     except Exception as e:
         return JsonResponse({'error': str(e)}, status=400)
 
-@require_GET
+@require_http_methods(["GET"])
 def orders_by_date_range(request):
     """
     Retrieves orders within a specified date range.
@@ -383,6 +383,42 @@ def orders_by_date_range(request):
             'items': items_data
         })
     return JsonResponse({'orders': orders_data})
+
+@require_http_methods(["GET"])
+def calculate_revenue(request):
+    """
+    Calculates the total revenue between two specified dates.
+    Expects 'start_date' and 'end_date' query parameters in 'YYYY-MM-DD' format.
+    """
+    start_date_str = request.GET.get('start_date')
+    end_date_str = request.GET.get('end_date')
+
+    if not start_date_str or not end_date_str:
+        return JsonResponse({'error': "Please provide both 'start_date' and 'end_date' query parameters."},
+                        status=400)
+
+    try:
+        start_date = datetime.strptime(start_date_str, '%Y-%m-%d').date()
+        end_date = datetime.strptime(end_date_str, '%Y-%m-%d').date()
+    except ValueError:
+        return JsonResponse({'error': "Invalid date format. Please use 'YYYY-MM-DD'."},
+                        status=400)
+
+    if start_date > end_date:
+        return JsonResponse({'error': "'start_date' cannot be after 'end_date'."},
+                        status=400)
+
+    # Calculate total revenue for orders in the date range
+    orders = Order.objects.filter(created_at__date__range=[start_date, end_date])
+    
+    # Calculate sum of total_price for all orders in range
+    total_revenue = sum(order.total_price for order in orders)
+    
+    # Count the number of orders
+    order_count = orders.count()
+    
+    # Just return the total revenue amount as requested
+    return JsonResponse(float(total_revenue), safe=False)
 
 
 
