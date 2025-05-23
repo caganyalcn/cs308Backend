@@ -18,6 +18,8 @@ from .views import (
     add_to_favorites,
     remove_from_favorites,
     get_favorites,
+    update_product_price,
+    discount_product,  # added discount view
 )
 
 
@@ -27,6 +29,8 @@ urlpatterns = [
     path('products/create/', create_product, name='create_product'),
     path('products/<int:product_id>/update/', update_product, name='update_product'),
     path('products/<int:product_id>/delete/', delete_product, name='delete_product'),
+    path('products/update_price/<int:product_id>/', update_product_price, name='update_product_price'),
+    path('products/<int:product_id>/discount/', discount_product, name='discount_product'),  # discount route
 
     path('add-to-cart/', add_to_cart, name='add-to-cart'),  
     path('get-cart/', get_cart, name='get-cart'), 

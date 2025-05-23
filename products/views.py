@@ -9,8 +9,11 @@ from django.views.decorators.csrf import csrf_exempt
 from django.http import JsonResponse
 from django.contrib.auth.decorators import login_required
 from django.views.decorators.http import require_http_methods
+from django.core.mail import send_mail
+from django.conf import settings
 
 import json
+from decimal import Decimal
 
 from .models import Product, Cart, CartItem, Category, Favorite
 from .serializers import ProductSerializer, CategorySerializer, FavoriteSerializer
@@ -426,75 +429,107 @@ def update_stock(request, product_id):
     except Exception as e:
         return JsonResponse({"error": str(e)}, status=400)
 
-@require_http_methods(["GET"])
-def get_stock_history(request, product_id):
-    user_id = request.session.get('user_id')
-    if not user_id:
-        return JsonResponse({"error": "Authentication required"}, status=401)
-    
-    user = User.objects.get(id=user_id)
-    if not is_product_manager(user):
-        return JsonResponse({"error": "Only product managers can view stock history"}, status=403)
-    
-    try:
-        product = Product.objects.get(id=product_id)
-        history = StockHistory.objects.filter(product=product).order_by('-created_at')
-        serializer = StockHistorySerializer(history, many=True)
-        return JsonResponse({"stock_history": serializer.data})
-    except Product.DoesNotExist:
-        return JsonResponse({"error": "Product not found"}, status=404)
-    except Exception as e:
-        return JsonResponse({"error": str(e)}, status=400)
-
-@require_http_methods(["GET"])
-def get_low_stock_products(request):
-    user_id = request.session.get('user_id')
-    if not user_id:
-        return JsonResponse({"error": "Authentication required"}, status=401)
-    
-    user = User.objects.get(id=user_id)
-    if not is_product_manager(user):
-        return JsonResponse({"error": "Only product managers can view low stock products"}, status=403)
-    
-    try:
-        low_stock_products = Product.objects.filter(
-            stock_quantity__lte=models.F('low_stock_threshold')
-        )
-        serializer = ProductSerializer(low_stock_products, many=True)
-        return JsonResponse({"low_stock_products": serializer.data})
-    except Exception as e:
-        return JsonResponse({"error": str(e)}, status=400)
 
 @csrf_exempt
-@require_http_methods(["PUT"])
-def update_low_stock_threshold(request, product_id):
+@require_http_methods(["POST"])
+def update_product_price(request, product_id):
     user_id = request.session.get('user_id')
     if not user_id:
         return JsonResponse({"error": "Authentication required"}, status=401)
-    
-    user = User.objects.get(id=user_id)
-    if not is_product_manager(user):
-        return JsonResponse({"error": "Only product managers can update low stock threshold"}, status=403)
-    
+
     try:
-        product = Product.objects.get(id=product_id)
+        user = User.objects.get(id=user_id)
+    except User.DoesNotExist:
+        return JsonResponse({"error": "User not found"}, status=404)
+
+    # Check if the user is a sales manager (role == 2)
+    if user.role != 2:
+        return JsonResponse({"error": "Only sales managers can update product prices"}, status=403)
+
+    try:
         data = json.loads(request.body)
-        new_threshold = int(data.get('low_stock_threshold', 10))
+        new_price = data.get('price')
 
-        if new_threshold < 0:
-            return JsonResponse({"error": "Threshold cannot be negative"}, status=400)
+        if new_price is None:
+            return JsonResponse({"error": "Price is required"}, status=400)
 
-        product.low_stock_threshold = new_threshold
+        try:
+            new_price = float(new_price)
+            if new_price < 0:
+                return JsonResponse({"error": "Price cannot be negative"}, status=400)
+        except ValueError:
+            return JsonResponse({"error": "Invalid price format"}, status=400)
+
+        product = Product.objects.get(id=product_id)
+        product.price = new_price
         product.save()
-
+        
+        # Assuming you have a ProductSerializer
+        from .serializers import ProductSerializer 
         return JsonResponse({
-            "message": "Low stock threshold updated successfully",
+            "message": "Product price updated successfully",
             "product": ProductSerializer(product).data
-        })
+        }, status=200)
+
     except Product.DoesNotExist:
         return JsonResponse({"error": "Product not found"}, status=404)
     except Exception as e:
-        return JsonResponse({"error": str(e)}, status=400)
+        return JsonResponse({"error": str(e)}, status=500)
+
+@csrf_exempt
+@require_http_methods(["POST"])
+def discount_product(request, product_id):
+    # Ensure sales manager
+    user_id = request.session.get('user_id')
+    if not user_id:
+        return JsonResponse({"error": "Authentication required"}, status=401)
+    try:
+        user = User.objects.get(id=user_id)
+    except User.DoesNotExist:
+        return JsonResponse({"error": "User not found"}, status=404)
+    if user.role != 2:
+        return JsonResponse({"error": "Only sales managers can apply discounts"}, status=403)
+    # Parse discount
+    try:
+        data = json.loads(request.body)
+        discount_pct = data.get('discount_percentage')
+        if discount_pct is None:
+            return JsonResponse({"error": "Discount percentage required"}, status=400)
+        discount_pct = Decimal(str(discount_pct))
+        if discount_pct < 0 or discount_pct > 100:
+            return JsonResponse({"error": "Discount percentage must be between 0 and 100"}, status=400)
+    except (ValueError, json.JSONDecodeError):
+        return JsonResponse({"error": "Invalid discount format"}, status=400)
+    # Get product
+    try:
+        product = Product.objects.get(id=product_id)
+    except Product.DoesNotExist:
+        return JsonResponse({"error": "Product not found"}, status=404)
+
+    # Check if product price is 0 or null
+    if product.price is None or product.price == Decimal('0'):
+        return JsonResponse({"error": "Cannot apply discount to a product with no price or zero price."}, status=400)
+
+    # Apply discount using Decimal
+    old_price = product.price 
+    new_price = old_price * (Decimal('1') - discount_pct / Decimal('100'))
+    product.price = new_price
+    product.save()
+    # Notify users who favorited the product
+    favorites = Favorite.objects.filter(product=product).select_related('user')
+    recipient_list = [fav.user.email for fav in favorites if fav.user.email]
+    if recipient_list:
+        subject = f"{product.name} ürününde {discount_pct}% indirim!"
+        message = (
+            f"Merhaba! '{product.name}' ürününde %{discount_pct} indirim var. "
+            f"Yeni fiyatı {new_price:.2f} TL."
+        )
+        from_email = settings.DEFAULT_FROM_EMAIL
+        send_mail(subject, message, from_email, recipient_list, fail_silently=False)
+    return JsonResponse({
+        "message": "Discount applied successfully",
+        "product": ProductSerializer(product).data
+    }, status=200)
 
 @csrf_exempt
 @api_view(['POST'])
