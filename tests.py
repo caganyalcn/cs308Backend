@@ -2,7 +2,7 @@ from django.test import SimpleTestCase
 from decimal import Decimal
 from accounts.models import User
 from address.models import Address
-from products.models import Product, Cart, CartItem
+from products.models import Category, Product, Cart, CartItem
 from orders.models import Order, OrderItem
 from reviews.models import Review
 
@@ -143,3 +143,21 @@ class SimpleModelTests(SimpleTestCase):
         # Order.status default olarak 'processing' atalı
         field = Order._meta.get_field('status')
         self.assertEqual(field.default, 'processing')
+    
+    def test_category_str(self):
+        c = Category(name="Electronics", description="Devices")
+        self.assertEqual(str(c), "Electronics")
+
+    def test_category_has_description_field(self):
+        self.assertTrue(hasattr(Category, 'description'))
+
+    def test_category_created_at_exists(self):
+        self.assertTrue(hasattr(Category, 'created_at'))
+
+    def test_product_category_foreign_key(self):
+        self.assertTrue(hasattr(Product, 'category'))
+
+    def test_cart_has_user_field(self):
+        self.assertTrue(hasattr(Cart, 'user'))
+
+    
