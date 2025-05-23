@@ -11,7 +11,10 @@ class Order(models.Model):
         choices=[
             ('processing', 'Processing'),
             ('in-transit', 'In Transit'),
-            ('delivered', 'Delivered')
+            ('delivered', 'Delivered'),
+            ('cancelled', 'Cancelled'),
+            ('refundwaiting ', 'RefundWaiting'),
+            ('refunded', 'Refunded')
         ],
         default='processing'
     )

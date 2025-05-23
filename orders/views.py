@@ -11,6 +11,8 @@ import json
 import os
 
 from django.core.mail import EmailMessage
+from django.conf import settings
+
 from .serializers import OrderSerializer
 
 def send_invoice_email(user_email, pdf_path):
@@ -20,6 +22,18 @@ def send_invoice_email(user_email, pdf_path):
     email = EmailMessage(subject, body, to=[user_email])
     email.attach_file(pdf_path)
     email.send()
+
+def send_cancellation_email(user_email, order_id, order_items, total_price):
+    subject = f'Order #{order_id} Cancelled - ÇiftlikBank'
+    message_body = f"Merhaba,\n\nSiparişiniz #{order_id} başarıyla iptal edilmiştir.\n\nİptal Edilen Ürünler:\n"
+    for item in order_items:
+        message_body += f"- {item['name']} ({item['quantity']} adet) - Fiyat: {item['price']:.2f} TL\n"
+    message_body += f"\nToplam Tutar: {total_price:.2f} TL\n"
+    message_body += "\nTeşekkür ederiz.\nÇiftlikBank Ekibiniz"
+
+    from_email = settings.DEFAULT_FROM_EMAIL
+
+    send_mail(subject, message_body, from_email, [user_email], fail_silently=False)
 
 @csrf_exempt
 def place_order(request):
@@ -330,6 +344,56 @@ def get_invoice_pdf(request, order_id):
             
     except Order.DoesNotExist:
         return JsonResponse({'error': 'Order not found'}, status=404)
+    except Exception as e:
+        return JsonResponse({'error': str(e)}, status=400)
+
+@csrf_exempt
+@require_http_methods(["POST"])
+def cancel_order(request, order_id):
+    user_id = request.session.get('user_id')
+    if not user_id:
+        return JsonResponse({'error': 'Authentication required'}, status=401)
+
+    try:
+        user = User.objects.get(id=user_id)
+        order = Order.objects.get(id=order_id)
+
+        # Check if the order belongs to the authenticated user
+        if order.user != user:
+            return JsonResponse({'error': 'Bu siparişi iptal etme yetkiniz yok.'}, status=403)
+
+        # Check if the order status is 'processing'
+        if order.status != 'processing':
+            return JsonResponse({'error': 'Sadece işlemde olan siparişler iptal edilebilir.'}, status=400)
+
+        # Update order status to cancelled
+        order.status = 'cancelled'
+        order.save()
+
+        # Increase product stock quantity
+        order_items = OrderItem.objects.filter(order=order)
+        for item in order_items:
+            product = item.product
+            product.stock_quantity += item.quantity
+            product.save()
+
+        # Send cancellation email
+        items_data = [
+            {
+                'name': item.product.name,
+                'quantity': item.quantity,
+                'price': float(item.price_at_purchase),
+            }
+            for item in order_items
+        ]
+        send_cancellation_email(user.email, order.id, items_data, float(order.total_price))
+
+        return JsonResponse({'message': f'Sipariş #{order_id} başarıyla iptal edildi.'})
+
+    except Order.DoesNotExist:
+        return JsonResponse({'error': 'Sipariş bulunamadı.'}, status=404)
+    except User.DoesNotExist:
+         return JsonResponse({'error': 'Kullanıcı bulunamadı.'}, status=404)
     except Exception as e:
         return JsonResponse({'error': str(e)}, status=400)
 
