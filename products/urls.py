@@ -15,6 +15,9 @@ from .views import (
     update_category,
     delete_category,
     update_stock,
+    add_to_favorites,
+    remove_from_favorites,
+    get_favorites,
 )
 
 
@@ -29,7 +32,12 @@ urlpatterns = [
     path('get-cart/', get_cart, name='get-cart'), 
     path('remove-from-cart/', remove_from_cart, name='remove-from-cart'),
     path('update-cart/', update_cart_quantity, name='update-cart'),
-    
+
+    # Favorite endpoints
+    path('favorites/add/', add_to_favorites, name='add-to-favorites'),
+    path('favorites/remove/', remove_from_favorites, name='remove-from-favorites'),
+    path('favorites/', get_favorites, name='get-favorites'),
+
     # Category Management
     path('categories/', list_categories, name='list_categories'),
     path('categories/create/', create_category, name='create_category'),

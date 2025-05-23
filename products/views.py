@@ -12,8 +12,8 @@ from django.views.decorators.http import require_http_methods
 
 import json
 
-from .models import Product, Cart, CartItem, Category
-from .serializers import ProductSerializer, CategorySerializer
+from .models import Product, Cart, CartItem, Category, Favorite
+from .serializers import ProductSerializer, CategorySerializer, FavoriteSerializer
 from accounts.models import User
 
 # ✅ Ürünleri listeleme (filtreleme, arama, sıralama)
@@ -495,4 +495,49 @@ def update_low_stock_threshold(request, product_id):
         return JsonResponse({"error": "Product not found"}, status=404)
     except Exception as e:
         return JsonResponse({"error": str(e)}, status=400)
+
+@csrf_exempt
+@api_view(['POST'])
+def add_to_favorites(request):
+    user_id = request.session.get('user_id')
+    if not user_id:
+        return JsonResponse({'error': 'Authentication required'}, status=401)
+    try:
+        data = json.loads(request.body)
+        product_id = data.get('product_id')
+        product = Product.objects.get(id=product_id)
+    except (json.JSONDecodeError, Product.DoesNotExist):
+        return JsonResponse({'error': 'Invalid product'}, status=400)
+    user = User.objects.get(id=user_id)
+    if Favorite.objects.filter(user=user, product=product).exists():
+        return JsonResponse({'message': 'Already in favorites'})
+    Favorite.objects.create(user=user, product=product)
+    return JsonResponse({'message': 'Added to favorites'})
+
+@csrf_exempt
+@api_view(['POST'])
+def remove_from_favorites(request):
+    user_id = request.session.get('user_id')
+    if not user_id:
+        return JsonResponse({'error': 'Authentication required'}, status=401)
+    try:
+        data = json.loads(request.body)
+        product_id = data.get('product_id')
+        fav = Favorite.objects.filter(user_id=user_id, product_id=product_id).first()
+        if fav:
+            fav.delete()
+            return JsonResponse({'message': 'Removed from favorites'})
+    except json.JSONDecodeError:
+        pass
+    return JsonResponse({'error': 'Favorite not found'}, status=404)
+
+@csrf_exempt
+@api_view(['GET'])
+def get_favorites(request):
+    user_id = request.session.get('user_id')
+    if not user_id:
+        return JsonResponse({'favorites': []})
+    favs = Favorite.objects.filter(user_id=user_id).select_related('product')
+    serializer = FavoriteSerializer(favs, many=True)
+    return JsonResponse({'favorites': serializer.data})
 
