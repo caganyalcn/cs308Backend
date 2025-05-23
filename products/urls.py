@@ -21,6 +21,7 @@ from .views import (
     update_product_price,
     discount_product,  # added discount view
     save_credit_card_details, # Import the new view
+    get_products_with_null_price,
 )
 
 
@@ -32,6 +33,7 @@ urlpatterns = [
     path('products/<int:product_id>/delete/', delete_product, name='delete_product'),
     path('products/update_price/<int:product_id>/', update_product_price, name='update_product_price'),
     path('products/<int:product_id>/discount/', discount_product, name='discount_product'),  # discount route
+    path('products/null-price/', get_products_with_null_price, name='products-null-price'),
 
     path('add-to-cart/', add_to_cart, name='add-to-cart'),  
     path('get-cart/', get_cart, name='get-cart'), 
