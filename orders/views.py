@@ -69,7 +69,7 @@ def place_order(request):
         item.product.save()
 
     # 3. Fatura PDF'sini oluştur
-    pdf_path = generate_invoice_pdf(order.id, user.email, invoice_items, total_price)
+    pdf_path = generate_invoice_pdf(order.id, user.email, user.delivery_address, invoice_items, total_price)
 
     # 4. E-posta ile PDF gönder
     send_invoice_email(user.email, pdf_path)
@@ -320,7 +320,7 @@ def get_invoice_pdf(request, order_id):
                     "quantity": item.quantity,
                     "price": float(item.price_at_purchase)
                 })
-            generate_invoice_pdf(order.id, order.user.email, items, float(order.total_price))
+            generate_invoice_pdf(order.id, order.user.email, order.user.delivery_address, items, float(order.total_price))
         
         # Return the PDF file
         with open(invoice_path, 'rb') as pdf:
