@@ -15,9 +15,10 @@ from django.conf import settings
 import json
 from decimal import Decimal
 
-from .models import Product, Cart, CartItem, Category, Favorite
+from .models import Product, Cart, CartItem, Category, Favorite, CreditCard
 from .serializers import ProductSerializer, CategorySerializer, FavoriteSerializer
 from accounts.models import User
+from .models import hash_with_salt
 
 # ✅ Ürünleri listeleme (filtreleme, arama, sıralama)
 class ProductListView(generics.ListAPIView):
@@ -575,4 +576,50 @@ def get_favorites(request):
     favs = Favorite.objects.filter(user_id=user_id).select_related('product')
     serializer = FavoriteSerializer(favs, many=True)
     return JsonResponse({'favorites': serializer.data})
+
+@csrf_exempt
+@require_http_methods(["POST"])
+def save_credit_card_details(request):
+    # Check for user authentication via session
+    user_id = request.session.get('user_id')
+    if not user_id:
+        return JsonResponse({'error': 'Authentication required'}, status=401)
+
+    try:
+        # Fetch the user based on the session ID
+        user = User.objects.get(id=user_id)
+    except User.DoesNotExist:
+        return JsonResponse({'error': 'User not found'}, status=404)
+
+    try:
+        data = json.loads(request.body)
+        card_number = data.get('card_number')
+        cvv = data.get('cvv')
+        expiry_date = data.get('expiry_date')
+        card_holder_name = data.get('card_holder_name')
+
+        if not all([card_number, cvv, expiry_date, card_holder_name]):
+            return JsonResponse({'error': 'Missing required fields'}, status=400)
+
+        # Hash card number and CVV using the utility function
+        card_number_hash_hex, card_number_salt_hex = hash_with_salt(card_number)
+        cvv_hash_hex, cvv_salt_hex = hash_with_salt(cvv)
+
+        # Create and save the CreditCard instance
+        credit_card = CreditCard.objects.create(
+            user=user,
+            card_number_hash=card_number_hash_hex,
+            card_number_salt=card_number_salt_hex,
+            cvv_hash=cvv_hash_hex,
+            cvv_salt=cvv_salt_hex,
+            expiry_date=expiry_date,
+            card_holder_name=card_holder_name,
+        )
+
+        return JsonResponse({'message': 'Credit card details saved successfully', 'card_id': credit_card.id}, status=201)
+
+    except json.JSONDecodeError:
+        return JsonResponse({'error': 'Invalid JSON data'}, status=400)
+    except Exception as e:
+        return JsonResponse({'error': str(e)}, status=500)
 

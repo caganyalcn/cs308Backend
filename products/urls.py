@@ -20,6 +20,7 @@ from .views import (
     get_favorites,
     update_product_price,
     discount_product,  # added discount view
+    save_credit_card_details, # Import the new view
 )
 
 
@@ -47,4 +48,7 @@ urlpatterns = [
     path('categories/create/', create_category, name='create_category'),
     path('categories/<int:category_id>/update/', update_category, name='update_category'),
     path('categories/<int:category_id>/delete/', delete_category, name='delete_category'),
+
+    # Credit Card Saving during Purchase
+    path('save-credit-card-details/', save_credit_card_details, name='save_credit_card_details'),
 ]
