@@ -15,6 +15,10 @@ import json
 from .models import Product, Cart, CartItem, Category
 from .serializers import ProductSerializer, CategorySerializer
 from accounts.models import User
+from decimal import Decimal
+
+def is_sales_manager(user):
+    return getattr(user, 'role', None) == 2
 
 # ✅ Ürünleri listeleme (filtreleme, arama, sıralama)
 class ProductListView(generics.ListAPIView):
@@ -496,3 +500,78 @@ def update_low_stock_threshold(request, product_id):
     except Exception as e:
         return JsonResponse({"error": str(e)}, status=400)
 
+###sales
+
+@csrf_exempt
+@require_http_methods(["POST"])
+def set_product_price(request):
+    user_id = request.session.get('user_id')
+    if not user_id:
+        return JsonResponse({"error": "Authentication required"}, status=401)
+    user = User.objects.get(id=user_id)
+    if not is_sales_manager(user):
+        return JsonResponse({"error": "Only sales managers can set prices"}, status=403)
+
+    try:
+        data = json.loads(request.body)
+        pid = data.get('product_id')
+        new_price = Decimal(str(data.get('new_price')))
+        p = Product.objects.get(id=pid)
+        p.price = new_price
+        p.save()
+        return JsonResponse({"message": "Price updated successfully"})
+    except Product.DoesNotExist:
+        return JsonResponse({"error": "Product not found"}, status=404)
+    except Exception as e:
+        return JsonResponse({"error": str(e)}, status=400)
+
+@csrf_exempt
+@require_http_methods(["POST"])
+def apply_discount(request):
+    user_id = request.session.get('user_id')
+    if not user_id:
+        return JsonResponse({"error": "Authentication required"}, status=401)
+    user = User.objects.get(id=user_id)
+    if not is_sales_manager(user):
+        return JsonResponse({"error": "Only sales managers can apply discounts"}, status=403)
+
+    try:
+        data = json.loads(request.body)
+        pid = data.get('product_id')
+        pct = float(data.get('discount_percentage', 0))
+        p = Product.objects.get(id=pid)
+        p.discount_percentage = pct
+        # isterseniz tarih başlangıç/bitiş ekleyin
+        p.save()
+        return JsonResponse({"message": f"%{pct} discount applied"})
+    except Product.DoesNotExist:
+        return JsonResponse({"error": "Product not found"}, status=404)
+    except Exception as e:
+        return JsonResponse({"error": str(e)}, status=400)
+    
+@require_http_methods(["GET"])
+def calculate_revenue_loss(request):
+    user_id = request.session.get('user_id')
+    if not user_id:
+        return JsonResponse({"error": "Authentication required"}, status=401)
+    user = User.objects.get(id=user_id)
+    if not is_sales_manager(user):
+        return JsonResponse({"error": "Only sales managers can view reports"}, status=403)
+
+    start = request.GET.get('start_date')
+    end   = request.GET.get('end_date')
+    qs = Order.objects.filter(status='delivered')
+    if start:
+        qs = qs.filter(created_at__gte=start)
+    if end:
+        qs = qs.filter(created_at__lte=end)
+
+    total_revenue = sum(o.total_price for o in qs)
+    total_cost    = Decimal(str(total_revenue)) * Decimal('0.5')
+    profit        = total_revenue - total_cost
+
+    return JsonResponse({
+        "revenue": str(total_revenue),
+        "cost(50%)": str(total_cost),
+        "profit": str(profit)
+    })
