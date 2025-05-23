@@ -623,3 +623,25 @@ def save_credit_card_details(request):
     except Exception as e:
         return JsonResponse({'error': str(e)}, status=500)
 
+@csrf_exempt
+@api_view(['GET'])
+def get_products_with_null_price(request):
+    user_id = request.session.get('user_id')
+    if not user_id:
+        return JsonResponse({"error": "Authentication required"}, status=401)
+
+    try:
+        user = User.objects.get(id=user_id)
+    except User.DoesNotExist:
+        return JsonResponse({"error": "User not found"}, status=404)
+
+    # Check if the user is a sales manager (role == 2)
+    if user.role != 2:
+        return JsonResponse({"error": "Only sales managers can access this resource"}, status=403)
+
+    try:
+        products_with_null_price = Product.objects.filter(price__isnull=True)
+        serializer = ProductSerializer(products_with_null_price, many=True)
+        return JsonResponse({'products': serializer.data})
+    except Exception as e:
+        return JsonResponse({'error': str(e)}, status=500)
