@@ -160,4 +160,18 @@ class SimpleModelTests(SimpleTestCase):
     def test_cart_has_user_field(self):
         self.assertTrue(hasattr(Cart, 'user'))
 
-    
+    def test_cart_has_items_relation(self):
+        self.assertTrue(hasattr(Cart, 'items'))
+
+    def test_cartitem_product_field(self):
+        self.assertTrue(hasattr(CartItem, 'product'))
+
+    def test_cartitem_cart_field(self):
+        self.assertTrue(hasattr(CartItem, 'cart'))
+
+    def test_user_role_default(self):
+        u = User(name="A", surname="B", email="a@b.com", password="p")
+        self.assertEqual(u.role, 0)
+
+    def test_user_has_role_field(self):
+        self.assertTrue(hasattr(User, 'role'))
