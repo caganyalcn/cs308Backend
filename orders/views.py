@@ -41,14 +41,11 @@ def place_order(request):
     for item in cart_items:
         total_price += item.product.price * item.quantity
 
-    data = json.loads(request.body or '{}')
-    delivery_address = data.get('address', 'Default address')
-
     # 1. Order kaydı oluştur
     order = Order.objects.create(
         user=user,
         total_price=total_price,
-        delivery_address=delivery_address
+        delivery_address=user.delivery_address
     )
 
     # 2. OrderItem'ları oluştur
