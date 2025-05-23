@@ -12,6 +12,7 @@ import os
 
 from django.core.mail import EmailMessage
 from .serializers import OrderSerializer
+from datetime import datetime
 
 def send_invoice_email(user_email, pdf_path):
     subject = 'Order Invoice - ÇiftlikBank'
@@ -332,6 +333,56 @@ def get_invoice_pdf(request, order_id):
         return JsonResponse({'error': 'Order not found'}, status=404)
     except Exception as e:
         return JsonResponse({'error': str(e)}, status=400)
+
+@require_GET
+def orders_by_date_range(request):
+    """
+    Retrieves orders within a specified date range.
+    Expects 'start_date' and 'end_date' query parameters in 'YYYY-MM-DD' format.
+    """
+    start_date_str = request.GET.get('start_date')
+    end_date_str = request.GET.get('end_date')
+
+    if not start_date_str or not end_date_str:
+        return JsonResponse({'error': "Please provide both 'start_date' and 'end_date' query parameters."},
+                        status=400)
+
+    try:
+        start_date = datetime.strptime(start_date_str, '%Y-%m-%d').date()
+        end_date = datetime.strptime(end_date_str, '%Y-%m-%d').date()
+    except ValueError:
+        return JsonResponse({'error': "Invalid date format. Please use 'YYYY-MM-DD'."},
+                        status=400)
+
+    if start_date > end_date:
+        return JsonResponse({'error': "'start_date' cannot be after 'end_date'."},
+                        status=400)
+
+    orders = Order.objects.filter(created_at__date__range=[start_date, end_date]).select_related('user').prefetch_related('items__product')
+    if not orders.exists():
+        return JsonResponse({'message': 'No orders found in the specified date range.'}, status=404)
+
+    # Manually serialize the orders
+    orders_data = []
+    for order in orders:
+        items_data = []
+        for item in order.items.all():
+            items_data.append({
+                'product_id': item.product.id,
+                'product_name': item.product.name,
+                'quantity': item.quantity,
+                'price_at_purchase': float(item.price_at_purchase)
+            })
+        orders_data.append({
+            'id': order.id,
+            'user_email': order.user.email,
+            'created_at': order.created_at.isoformat(),
+            'total_price': float(order.total_price),
+            'delivery_address': order.delivery_address,
+            'status': order.status,
+            'items': items_data
+        })
+    return JsonResponse({'orders': orders_data})
 
 
 
